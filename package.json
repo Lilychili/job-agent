@@ -1,0 +1,18 @@
+{
+  "name": "job-agent",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "db:up": "docker compose up -d postgres",
+    "db:generate": "pnpm --filter @jobagent/db generate",
+    "db:migrate": "pnpm --filter @jobagent/db migrate",
+    "db:seed": "pnpm --filter @jobagent/db seed",
+    "dev": "pnpm --parallel --filter @jobagent/web --filter @jobagent/worker dev",
+    "dev:web": "pnpm --filter @jobagent/web dev",
+    "dev:worker": "pnpm --filter @jobagent/worker dev",
+    "test": "pnpm --filter @jobagent/core test",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
