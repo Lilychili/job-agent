@@ -22,6 +22,9 @@ export function atsFromUrl(raw: string): "greenhouse" | "lever" | "ashby" | null
   return null;
 }
 
+/** Greenhouse embeds and company-hosted boards name the job in the query, not the path. */
+const GREENHOUSE_JOB_PARAM = /^(token|gh_jid)$/;
+
 const TRACKING_PARAM = /^(utm_.*|gclid|fbclid|msclkid|trk|refid)$/i;
 
 /**
@@ -30,9 +33,10 @@ const TRACKING_PARAM = /^(utm_.*|gclid|fbclid|msclkid|trk|refid)$/i;
  */
 export function canonicalManualUrl(raw: string): string {
   const base = canonicalUrl(raw);
-  if (atsFromUrl(raw)) return base;
+  const ats = atsFromUrl(raw);
+  if (ats === "lever" || ats === "ashby") return base;
   const params = [...new URL(raw).searchParams]
-    .filter(([key]) => !TRACKING_PARAM.test(key))
+    .filter(([key]) => (ats === "greenhouse" ? GREENHOUSE_JOB_PARAM.test(key) : !TRACKING_PARAM.test(key)))
     .sort(([a], [b]) => a.localeCompare(b));
   return params.length ? `${base}?${new URLSearchParams(params)}` : base;
 }
@@ -66,29 +70,41 @@ export function normalizeTitle(title: string): string {
 }
 
 /**
- * Normalized AnswerBank key for a form question. Synonym map grows in M4.
- * A wrong match puts a false statement on an application, while a miss only raises a Blocker,
- * so patterns stay narrow: questions that merely sound alike (right to work vs needs sponsorship,
- * current vs expected salary) must never share a key. Sponsorship is checked first because
- * "work authorization sponsorship" is a sponsorship question.
+ * The wordings that mean exactly one saved answer. Matching is exact on purpose: a wrong match puts a
+ * false statement on an application, while a miss only raises a Blocker. Near-misses must stay out:
+ * "years of experience with Python" isn't total years, and "authorized to work in Germany" isn't the
+ * same answer as the United States. The map grows in M4.
  */
-const QUESTION_SYNONYMS: [RegExp, string][] = [
-  [/sponsor/, "visa_sponsorship"],
-  [/work authori[sz]ation|authori[sz]ed to work|right to work/, "work_authorization"],
-  [/notice period|when can you start|earliest start|availability to start|^(desired |preferred |available )?start date$/, "start_date"],
-  [/(expect|desired|target|requested).*(salary|compensation|pay)|(salary|compensation|pay).*(expectation|requirement)/, "salary_expectation"],
-  [/years of (professional )?experience/, "years_experience"],
-  [/relocat/, "relocation"],
-  [/how did you hear|where did you (hear|find)|^source$/, "how_did_you_hear"],
-  [/why (do you want to work|are you interested|this company|us)/, "why_this_company"],
-  [/processing of my personal data|data processing|privacy policy/, "data_consent"],
-  [/pronouns/, "pronouns"],
-  [/linkedin/, "linkedin"],
-  [/portfolio|^(personal )?website( url)?$/, "website"],
-];
+const QUESTION_PHRASES: Record<string, string[]> = {
+  start_date: ["what is your notice period", "notice period", "when can you start", "earliest start date", "availability to start", "start date", "desired start date", "preferred start date", "available start date"],
+  visa_sponsorship: ["will you now or in the future require visa sponsorship", "will you now or in the future require sponsorship", "do you require sponsorship", "do you require visa sponsorship", "do you need sponsorship", "do you need visa sponsorship", "visa sponsorship"],
+  work_authorization: ["are you legally authorized to work in this country", "are you legally authorised to work in this country", "are you legally authorized to work here", "are you authorized to work in this country", "work authorization", "work authorisation", "work authorization status", "right to work"],
+  salary_expectation: ["what are your salary expectations", "salary expectations", "expected salary", "desired salary", "desired compensation", "compensation expectations"],
+  years_experience: ["how many years of professional experience do you have", "how many years of experience do you have", "years of experience", "years of professional experience"],
+  relocation: ["are you open to relocation", "are you willing to relocate", "willing to relocate", "open to relocation"],
+  how_did_you_hear: ["how did you hear about this position", "how did you hear about this job", "how did you hear about us", "where did you find this job", "source"],
+  why_this_company: ["why do you want to work at this company", "why do you want to work here", "why are you interested in this role", "why this company", "why us"],
+  data_consent: ["i consent to the processing of my personal data for this application", "data processing consent", "privacy policy consent"],
+  pronouns: ["what are your pronouns", "pronouns", "preferred pronouns"],
+  linkedin: ["linkedin profile url", "linkedin profile", "linkedin url", "linkedin"],
+  website: ["portfolio or website url", "portfolio url", "portfolio", "website url", "website", "personal website url", "personal website"],
+};
+const KEY_BY_PHRASE = new Map(Object.entries(QUESTION_PHRASES).flatMap(([key, phrases]) => phrases.map((p) => [p, key] as const)));
 
+const MAX_KEY_CHARS = 80;
+
+/** FNV-1a. This file also runs in the browser, so no node:crypto. */
+function shortHash(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+/** Normalized AnswerBank key for a form question. Long questions keep a hash, so a shared opening never merges them. */
 export function questionKey(question: string): string {
   const q = question.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
-  for (const [re, key] of QUESTION_SYNONYMS) if (re.test(q)) return key;
-  return q.replace(/ /g, "_").slice(0, 80);
+  const known = KEY_BY_PHRASE.get(q);
+  if (known) return known;
+  const slug = q.replace(/ /g, "_");
+  return slug.length <= MAX_KEY_CHARS ? slug : `${slug.slice(0, MAX_KEY_CHARS - 9)}_${shortHash(q)}`;
 }

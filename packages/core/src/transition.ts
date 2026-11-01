@@ -86,6 +86,14 @@ export async function transitionInTx(
     throw new TransitionError("illegal", `Can't "${rule.label}" a card that is ${from}.`);
   }
 
+  // A run that was cancelled or timed out may still be finishing in the worker. Its result doesn't count.
+  if (actor === "system" && opts.runId) {
+    const [run] = await tx.select({ status: agentRun.status, applicationId: agentRun.applicationId }).from(agentRun).where(eq(agentRun.id, opts.runId));
+    if (run?.applicationId !== app.id || (run.status !== "queued" && run.status !== "running")) {
+      throw new TransitionError("illegal", "This run is no longer active.");
+    }
+  }
+
   const reason = await checkGuards(rule.guards, tx, app, ctx);
   if (reason) throw new TransitionError("guard", reason);
 

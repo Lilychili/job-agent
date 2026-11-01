@@ -8,6 +8,18 @@ if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 const config: NextConfig = {
   transpilePackages: ["@jobagent/core", "@jobagent/db", "@jobagent/queue", "@jobagent/agents"],
   serverExternalPackages: ["pg", "pg-boss", "unpdf", "mammoth"],
+  // No login, so a click is authority: a page that frames this app must not be able to steal one.
+  headers: () => [
+    {
+      source: "/:path*",
+      headers: [
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "Referrer-Policy", value: "no-referrer" },
+      ],
+    },
+  ],
   redirects: () => [
     { source: "/blockers", destination: "/questions", permanent: false },
     { source: "/answers", destination: "/questions", permanent: false },

@@ -58,7 +58,7 @@ interface CliJson {
 /** Never let an API key in our environment turn a subscription run into a pay-per-use one. */
 export function cliEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const clean = { ...env };
-  for (const k of ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX"]) delete clean[k];
+  for (const k of ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"]) delete clean[k];
   return clean;
 }
 
@@ -72,6 +72,8 @@ export function cliArgs(req: CliRequest): string[] {
     "", // no tools: this is a pure text-in, structure-out call
     "--disable-slash-commands",
     "--strict-mcp-config", // don't attach the owner's connectors (Gmail, Drive…) to a run fed untrusted text
+    "--setting-sources",
+    "", // nor their hooks or apiKeyHelper, which could run code or bill the API
   ];
   if (req.system) args.push("--system-prompt", req.system);
   if (req.schema) args.push("--json-schema", JSON.stringify(req.schema));
@@ -89,6 +91,14 @@ export async function runClaudeCli(req: CliRequest): Promise<CliResult> {
   }
 }
 
+/** Collects a stream as text. Decoding in the stream keeps a character split across two chunks whole. */
+export function collectText(stream: NodeJS.ReadableStream): { text: string } {
+  const out = { text: "" };
+  stream.setEncoding("utf8");
+  stream.on("data", (d: string) => (out.text += d));
+  return out;
+}
+
 async function spawnCli(req: CliRequest, cwd: string): Promise<CliResult> {
   const child = spawn(resolveClaudeCli(), cliArgs(req), {
     cwd,
@@ -97,10 +107,8 @@ async function spawnCli(req: CliRequest, cwd: string): Promise<CliResult> {
     windowsHide: true,
   });
 
-  let stdout = "";
-  let stderr = "";
-  child.stdout.on("data", (d) => (stdout += d));
-  child.stderr.on("data", (d) => (stderr += d));
+  const out = collectText(child.stdout);
+  const err = collectText(child.stderr);
   const onAbort = () => child.kill();
   req.signal?.addEventListener("abort", onAbort, { once: true });
 
@@ -121,13 +129,13 @@ async function spawnCli(req: CliRequest, cwd: string): Promise<CliResult> {
 
   let json: CliJson | null = null;
   try {
-    json = JSON.parse(stdout) as CliJson;
+    json = JSON.parse(out.text) as CliJson;
   } catch {
     // fall through to the error below
   }
   const text = (json?.result ?? "").trim();
   if (!json || json.is_error || code !== 0) {
-    const detail = text || stderr.trim() || stdout.trim().slice(0, 300) || `exit code ${code}`;
+    const detail = text || err.text.trim() || out.text.trim().slice(0, 300) || `exit code ${code}`;
     if (/not logged in|\/login|authenticat|invalid api key/i.test(detail)) {
       throw new CliError("Claude Code isn't signed in. Open a terminal, run `claude`, and sign in with your Claude account.");
     }

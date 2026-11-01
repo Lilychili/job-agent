@@ -33,6 +33,9 @@ export function BlockersInbox({ initial }: { initial: Item[] }) {
     onEvent: (type) => {
       if (type === "application" || type === "reconnected") void refetch();
     },
+    onStatus: (status) => {
+      if (status === "live") void refetch();
+    },
   });
 
   if (items.length === 0) {
