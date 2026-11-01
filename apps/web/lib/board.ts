@@ -1,6 +1,6 @@
 import "server-only";
 import { and, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
-import { columnFor, ownerActions, type Action, type ColumnId, type Status } from "@jobagent/core";
+import { columnFor, ownerActions, RULES, type Action, type ColumnId, type Status } from "@jobagent/core";
 import { agentRun, application, applicationEvent, blocker, job, settings } from "@jobagent/db";
 import { getDb } from "./server";
 
@@ -29,20 +29,6 @@ export interface BoardData {
   searchRunning: boolean;
   workerLastSeenAt: string | null;
 }
-
-const LABELS: Record<string, string> = {
-  shortlist: "Shortlist",
-  dismiss: "Dismiss",
-  craft: "Craft",
-  regenerate: "Regenerate",
-  approve: "Approve",
-  apply: "Apply",
-  markApplied: "Mark applied",
-  markReplied: "Replied",
-  markInterview: "Interview",
-  markRejected: "Rejected",
-  withdraw: "Withdraw",
-};
 
 export async function loadBoard(): Promise<BoardData> {
   const db = getDb();
@@ -102,7 +88,7 @@ export async function loadBoard(): Promise<BoardData> {
       lastError: app.lastError,
       working: !!run && run.status !== "paused",
       runLog: lastLog,
-      actions: ownerActions(status).map((a) => ({ action: a, label: LABELS[a] ?? a })),
+      actions: ownerActions(status).map((a) => ({ action: a, label: RULES[a].label })),
       blockers: openBlockers
         .filter((b) => b.applicationId === app.id)
         .map((b) => ({ id: b.id, question: b.question, label: b.fieldContext.label })),

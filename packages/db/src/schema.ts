@@ -136,10 +136,8 @@ export const answerBank = pgTable("answer_bank", {
   questionVariants: text().array().notNull().default(sql`'{}'::text[]`),
   answer: text().notNull(),
   kind: answerKind().notNull().default("text"),
+  // false = applies to one application only; its questionKey ends in "@<applicationId>".
   reusable: boolean().notNull().default(true),
-  // Set when reusable = false: the answer applies only to this application.
-  applicationId: uuid(),
-  sourceBlockerId: uuid(),
 });
 
 export const job = pgTable(
@@ -287,7 +285,6 @@ export const blocker = pgTable(
     fieldContext: jsonb().$type<FieldContext>().notNull(),
     answer: text(),
     answeredAt: timestamp({ withTimezone: true }),
-    savedToAnswerBank: boolean().notNull().default(false),
   },
   (t) => [
     index("blocker_open_idx").on(t.applicationId).where(sql`answered_at is null`),
@@ -296,6 +293,8 @@ export const blocker = pgTable(
 
 export const settings = pgTable("settings", {
   ...base,
+  // "api" = pay-per-use Claude API key; "cli" = the owner's signed-in Claude Code CLI (their subscription).
+  aiProvider: text().notNull().default("api"),
   encryptedApiKey: text(),
   apiKeyLast4: text(),
   defaultModel: text(),
@@ -303,5 +302,3 @@ export const settings = pgTable("settings", {
 });
 
 export type ApplicationStatus = (typeof applicationStatus.enumValues)[number];
-export type RunStatus = (typeof runStatus.enumValues)[number];
-export type AgentRole = (typeof agentRole.enumValues)[number];

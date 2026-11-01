@@ -9,6 +9,7 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@jobagent/agents": "workspace:*",
     "@jobagent/core": "workspace:*",
     "@jobagent/db": "workspace:*",
     "@jobagent/queue": "workspace:*",

@@ -1,10 +1,9 @@
 // M0 STUB — replaced by the real Pen (Claude + HTML template + Playwright PDF) in M3.
 // It already writes versioned, hashed Document rows so Approve and Apply's hash check work.
-import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { and, eq, max } from "drizzle-orm";
-import { resolveDataPath, transition } from "@jobagent/core";
+import { resolveDataPath, sha256, transition } from "@jobagent/core";
 import { createDb, document, profile } from "@jobagent/db";
 import { sleep, type Outcome, type RunHelpers } from "../runner";
 
@@ -60,7 +59,7 @@ export async function penCraft({ ctx, run, log, signal }: RunHelpers): Promise<O
       version,
       htmlSource: `<p>${kind} placeholder v${version}</p>`,
       pdfPath: rel,
-      sha256: createHash("sha256").update(pdf).digest("hex"),
+      sha256: sha256(pdf),
       factIds,
       profileVersion: p.version,
       agentRunId: run.id,

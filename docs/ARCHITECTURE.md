@@ -62,7 +62,7 @@ agents/
 
 - One wrapper `runAgent({ role, input, tools, outputSchema })` in `packages/agents`:
   - Loads `agents/<role>/agent.md` + `agents/shared/security-rules.md`; records the prompt file's git hash on the AgentRun.
-  - Reads the API key from the encrypted store at call time.
+  - Reaches Claude through the provider chosen in Settings: the encrypted API key, read at call time, or the owner's Claude Code CLI (subscription).
   - Logs **real** `usage` (input, output, cache read/write tokens) from every response onto the AgentRun.
   - Validates output against a Zod schema; one repair retry on invalid JSON, then fail the run.
 - Tools are explicit and minimal per role (see AGENTS.md). No shell, no arbitrary file system access, no `--dangerously-skip-permissions` equivalent.
@@ -72,6 +72,7 @@ agents/
 - Jobs are idempotent: keyed by `applicationId + action + version`. Re-delivery of the same job is a no-op.
 - Checkpoints stored on `AgentRun.checkpoint` (JSON) so paused runs can resume.
 - Timeouts: Scout 5 min, Pen 3 min, Shipper 10 min. On timeout → run failed, card returns to previous status with error.
+- Crash recovery: a dead worker can't time anything out, so at startup and with every heartbeat the worker fails runs left `running` past their limit (`failStaleRuns`). Otherwise the one-active-run rule would block the card for good.
 
 ## File storage
 

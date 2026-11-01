@@ -27,7 +27,9 @@ export async function GET(req: Request) {
         events.off("event", onEvent);
         try {
           controller.close();
-        } catch {}
+        } catch {
+          // already closed
+        }
       };
       events.on("event", onEvent);
       req.signal.addEventListener("abort", cleanup);

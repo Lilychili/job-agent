@@ -1,14 +1,15 @@
 import "server-only";
 import { EventEmitter } from "node:events";
 import pg from "pg";
-import { dataDirFromEnv, TransitionError, type CoreContext } from "@jobagent/core";
+import { ClaudeError, CliError } from "@jobagent/agents";
+import { ConfigError, dataDirFromEnv, TransitionError, ValidationError, type CoreContext } from "@jobagent/core";
 import { APP_EVENTS_CHANNEL, createDb, createPool, databaseUrl, type Db } from "@jobagent/db";
 import { makeEnqueue, startBoss, type PgBoss } from "@jobagent/queue";
 
-// Singletons survive Next.js dev hot reloads by living on globalThis.
+// Connections survive Next.js dev hot reloads by living on globalThis. The Drizzle wrapper doesn't:
+// it holds the schema, which must stay in step with the code.
 type Globals = {
   pool?: pg.Pool;
-  db?: Db;
   boss?: Promise<PgBoss>;
   events?: EventEmitter;
   listener?: Promise<void>;
@@ -16,20 +17,22 @@ type Globals = {
 const g = globalThis as typeof globalThis & { __jobagent?: Globals };
 const s = (g.__jobagent ??= {});
 
-export function getDb(): Db {
+export function getPool(): pg.Pool {
   s.pool ??= createPool();
-  s.db ??= createDb(s.pool);
-  return s.db;
+  return s.pool;
+}
+
+export function getDb(): Db {
+  return createDb(getPool());
 }
 
 export async function getCtx(): Promise<CoreContext> {
-  getDb();
   s.boss ??= startBoss(databaseUrl()).catch((err) => {
     s.boss = undefined;
     throw err;
   });
   const boss = await s.boss;
-  return { pool: s.pool!, enqueue: makeEnqueue(boss), dataDir: dataDirFromEnv() };
+  return { pool: getPool(), enqueue: makeEnqueue(boss), dataDir: dataDirFromEnv() };
 }
 
 /**
@@ -67,8 +70,28 @@ async function listen(events: EventEmitter, attempt: number): Promise<void> {
   }
 }
 
+/** Postgres rejected an id that isn't a UUID, so nothing can have that id. */
+function isBadUuid(err: unknown): boolean {
+  for (let e = err as { code?: string; cause?: unknown } | undefined; e; e = e.cause as typeof e) {
+    if (e.code === "22P02") return true;
+  }
+  return false;
+}
+
 /** Map core errors to HTTP responses. */
 export function errorResponse(err: unknown): Response {
+  if (err instanceof ValidationError) {
+    return Response.json({ error: err.message, code: "invalid" }, { status: 400 });
+  }
+  if (err instanceof ClaudeError || err instanceof CliError) {
+    return Response.json({ error: err.message, code: "claude" }, { status: 502 });
+  }
+  if (err instanceof ConfigError) {
+    return Response.json({ error: err.message, code: "config" }, { status: 500 });
+  }
+  if (isBadUuid(err)) {
+    return Response.json({ error: "Not found.", code: "not_found" }, { status: 404 });
+  }
   if (err instanceof TransitionError) {
     const status = { not_found: 404, illegal: 409, busy: 409, guard: 422 }[err.code];
     return Response.json({ error: err.message, code: err.code }, { status });

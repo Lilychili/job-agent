@@ -298,10 +298,13 @@ describe("blockers", () => {
       fieldContext: { label: "Notice", type: "text" },
     });
     await env.db.insert(evidence).values({ applicationId: appId, type: "submission" });
-    await expectError(answerBlocker(env.ctx, blockerId, "2 weeks", { reuse: true }), "guard", /already submitted/);
-    // The whole answer is rolled back, so it stays open.
+    const enqueuedBefore = env.enqueued.length;
+    expect(await answerBlocker(env.ctx, blockerId, "2 weeks", { reuse: true })).toEqual({ resumed: false });
+    // Nothing is queued, the card says why, and the answer isn't lost.
+    expect(env.enqueued).toHaveLength(enqueuedBefore);
+    expect((await status(appId)).lastError).toMatch(/already submitted/);
     const [b] = await env.db.select().from(blocker).where(and(eq(blocker.id, blockerId)));
-    expect(b!.answeredAt).toBeNull();
+    expect(b!.answer).toBe("2 weeks");
   });
 });
 

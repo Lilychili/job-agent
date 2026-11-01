@@ -1,13 +1,20 @@
 export * from "./machine";
 export * from "./normalize";
 export * from "./context";
-export { sha256File } from "./guards";
+export * from "./secrets";
+export * from "./profile";
+export * from "./answers";
+export * from "./data";
+export { sha256, sha256File } from "./guards";
 export { transition, transitionInTx, isUniqueViolation, type TransitionOptions, type TransitionResult } from "./transition";
 export {
   claimRun,
   appendLog,
   finishRun,
   startSearch,
+  startExtraction,
+  failRun,
+  failStaleRuns,
   raiseBlocker,
   answerBlocker,
   lookupAnswer,

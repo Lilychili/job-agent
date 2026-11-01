@@ -34,6 +34,8 @@ export interface TransitionResult {
   runId?: string;
 }
 
+const ACTIVE_RUN_STATUSES = ["queued", "running", "paused"] as const;
+
 const RUN_OUTCOME: Partial<Record<Action, "succeeded" | "failed">> = {
   craftSucceeded: "succeeded",
   craftFailed: "failed",
@@ -95,6 +97,14 @@ export async function transitionInTx(
     switch (effect) {
       case "archiveJob":
         await tx.update(job).set({ archived: true }).where(eq(job.id, app.jobId));
+        break;
+      case "cancelRuns":
+        // Abandoning a card closes whatever is working on it; a late result from the worker is then refused.
+        await tx
+          .update(agentRun)
+          .set({ status: "superseded", finishedAt: new Date() })
+          .where(and(eq(agentRun.applicationId, app.id), inArray(agentRun.status, ACTIVE_RUN_STATUSES)));
+        patch.hasOpenBlocker = false;
         break;
       case "lockDocuments": {
         const locked = await lockLatestDocuments(tx, app.id);

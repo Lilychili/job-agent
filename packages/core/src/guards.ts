@@ -14,8 +14,12 @@ type AppRow = {
 /** A guard returns null when it passes, or a human-readable reason when it fails. */
 type Guard = (tx: Db, app: AppRow, ctx: CoreContext) => Promise<string | null>;
 
+export function sha256(data: Buffer | string): string {
+  return createHash("sha256").update(data).digest("hex");
+}
+
 export async function sha256File(fullPath: string): Promise<string> {
-  return createHash("sha256").update(await readFile(fullPath)).digest("hex");
+  return sha256(await readFile(fullPath));
 }
 
 const guards: Record<GuardName, Guard> = {

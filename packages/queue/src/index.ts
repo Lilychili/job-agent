@@ -7,6 +7,7 @@ export { PgBoss };
 
 /** Per-queue settings. Timeouts come from docs/ARCHITECTURE.md (Scout 5, Pen 3, Shipper 10 min). */
 export const QUEUES: Record<JobName, { expireInSeconds: number; retryLimit: number }> = {
+  [JOBS.extractorExtract]: { expireInSeconds: 2 * 60, retryLimit: 0 },
   [JOBS.scoutSearch]: { expireInSeconds: 5 * 60, retryLimit: 0 },
   [JOBS.penCraft]: { expireInSeconds: 3 * 60, retryLimit: 0 },
   [JOBS.shipperPrefill]: { expireInSeconds: 10 * 60, retryLimit: 0 },

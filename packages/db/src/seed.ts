@@ -1,5 +1,6 @@
-// Seeds a confirmed demo Profile, Preferences and a Settings row so the M0 board
-// can be clicked end to end. Real onboarding replaces this in M1.
+// Optional demo data: a confirmed demo Profile, Preferences and a Settings row, so the board
+// can be clicked end to end without onboarding. NOT needed for real use: onboarding (/setup) fills
+// all of this in. Don't run it if you want to start from an empty Profile.
 import { createDb, createPool, preferences, profile, settings } from "./index";
 
 const pool = createPool();

@@ -1,6 +1,6 @@
 # Data Model
 
-All tables have `id` (uuid), `createdAt`, `updatedAt`. Single user, so no `userId` in MVP (add later if needed).
+All tables have `id` (uuid), `createdAt`, `updatedAt`. Single user, so no `userId` in MVP (add later if needed). Profile, Preferences and Settings hold exactly one row, enforced by a unique index.
 
 ## Profile
 Facts parsed from the CV, reviewed and confirmed.
@@ -27,12 +27,11 @@ Fact IDs are stable so Pen can cite them.
 ## AnswerBank
 | Field | Type | Notes |
 |---|---|---|
-| questionKey | text unique | Normalized (lowercase, stripped punctuation, synonyms mapped) |
+| questionKey | text unique | Normalized (lowercase, stripped punctuation, synonyms mapped). Job-only answers end in `@<applicationId>` |
 | questionVariants | text[] | Raw phrasings seen |
-| answer | text | |
+| answer | text | Empty means "not answered yet": seeded questions start this way and lookups ignore them |
 | kind | enum: text / choice / number / date / consent | |
 | reusable | bool | If false, only applies to the job it was created for |
-| sourceBlockerId | uuid? | |
 
 ## Job
 | Field | Type | Notes |
@@ -94,7 +93,7 @@ Unique `(applicationId, kind, version)`. Approved rows are immutable (DB trigger
 `applicationId, agentRunId?, type (prefill_screenshot | submission | confirmation_text | email), filePath?, text?, capturedAt`
 
 ## Blocker
-`applicationId, agentRunId, question, fieldContext (label, type, options), answer?, answeredAt?, savedToAnswerBank bool`
+`applicationId, agentRunId, question, questionKey, fieldContext (label, type, options), answer?, answeredAt?`
 
 ## Settings
-`encryptedApiKey (AES-256-GCM, key from env), apiKeyLast4, defaultModel`
+`aiProvider (api | cli), encryptedApiKey? (AES-256-GCM, key from env), apiKeyLast4?, defaultModel?, workerLastSeenAt?`

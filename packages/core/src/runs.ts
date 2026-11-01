@@ -11,9 +11,10 @@ import {
   type RunLogEntry,
 } from "@jobagent/db";
 import { TransitionError, type CoreContext } from "./context";
-import { JOBS } from "./machine";
+import { checkGuards } from "./guards";
+import { getRule, JOBS, type JobName } from "./machine";
 import { questionKey } from "./normalize";
-import { transitionInTx } from "./transition";
+import { transition, transitionInTx } from "./transition";
 
 export type Run = typeof agentRun.$inferSelect;
 
@@ -76,25 +77,98 @@ export async function finishRun(
   });
 }
 
-/** Search isn't tied to a card, so it isn't a transition. One search at a time. */
-export async function startSearch(ctx: CoreContext): Promise<{ runId: string }> {
+/** Runs that aren't tied to a card aren't transitions. Only one of each role at a time. */
+async function startSoloRun(
+  ctx: CoreContext,
+  run: { role: "scout" | "extractor"; jobName: JobName; input: Record<string, unknown>; busyMessage: string },
+): Promise<{ runId: string }> {
   return withTx(ctx.pool, async (tx, client) => {
-    // Serialize concurrent clicks on Search.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('scout.search'))`);
+    // Serialize concurrent clicks.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${run.jobName}))`);
     const active = await tx
       .select({ id: agentRun.id })
       .from(agentRun)
-      .where(and(eq(agentRun.role, "scout"), inArray(agentRun.status, ["queued", "running"])))
+      .where(and(eq(agentRun.role, run.role), inArray(agentRun.status, ["queued", "running"])))
       .limit(1);
-    if (active.length) throw new TransitionError("busy", "A search is already running.");
-    const [run] = await tx
+    if (active.length) throw new TransitionError("busy", run.busyMessage);
+    const [row] = await tx
       .insert(agentRun)
-      .values({ role: "scout", jobName: JOBS.scoutSearch, input: {} })
+      .values({ role: run.role, jobName: run.jobName, input: run.input })
       .returning({ id: agentRun.id });
-    await ctx.enqueue(client, { name: JOBS.scoutSearch, id: run!.id, data: { runId: run!.id, applicationId: null } });
-    await notify(tx, { type: "run", runId: run!.id, applicationId: null, status: "queued", jobName: JOBS.scoutSearch });
-    return { runId: run!.id };
+    const runId = row!.id;
+    await ctx.enqueue(client, { name: run.jobName, id: runId, data: { runId, applicationId: null } });
+    await notify(tx, { type: "run", runId, applicationId: null, status: "queued", jobName: run.jobName });
+    return { runId };
   });
+}
+
+export function startSearch(ctx: CoreContext): Promise<{ runId: string }> {
+  return startSoloRun(ctx, { role: "scout", jobName: JOBS.scoutSearch, input: {}, busyMessage: "A search is already running." });
+}
+
+/** Queue a CV extraction. `file` is relative to DATA_DIR (the web app saved the upload there). */
+export function startExtraction(ctx: CoreContext, file: { path: string; name: string }): Promise<{ runId: string }> {
+  return startSoloRun(ctx, {
+    role: "extractor",
+    jobName: JOBS.extractorExtract,
+    input: { file: file.path, fileName: file.name },
+    busyMessage: "A CV is already being read.",
+  });
+}
+
+/** How a failed or timed-out run rolls back the card, per queue. */
+const FAILURE_ACTION: Partial<Record<JobName, string>> = {
+  [JOBS.penCraft]: "craftFailed",
+  [JOBS.shipperPrefill]: "prefillFailed",
+  [JOBS.shipperResume]: "prefillFailed",
+};
+
+/** Close a run as failed and roll its card back, so nothing is left spinning. */
+export async function failRun(ctx: CoreContext, run: Pick<Run, "id" | "jobName" | "applicationId">, error: string): Promise<void> {
+  const action = FAILURE_ACTION[run.jobName as JobName];
+  if (action && run.applicationId) {
+    try {
+      await transition(ctx, run.applicationId, action, { actor: "system", runId: run.id, error });
+      return;
+    } catch (e) {
+      console.error(`[${run.jobName}] rollback transition failed:`, e);
+    }
+  }
+  await finishRun(ctx, run.id, { status: "failed", error });
+}
+
+/** A queued job nobody picked up for this long is never going to run (pg-boss has dropped it). */
+const QUEUED_MAX_AGE_SECONDS = 24 * 60 * 60;
+
+/**
+ * A crashed worker leaves runs `running` forever, and the one-active-run rule would then block the
+ * card (or Search) for good. Fail anything past its time limit. `limits` is seconds per queue;
+ * `assumeNoneRunning` is for worker startup, when no run can really be in progress.
+ */
+export async function failStaleRuns(
+  ctx: CoreContext,
+  limits: Partial<Record<string, number>>,
+  opts: { assumeNoneRunning?: boolean } = {},
+): Promise<number> {
+  const { rows } = await ctx.pool.query<{
+    id: string;
+    job_name: string;
+    application_id: string | null;
+    status: string;
+    age: number;
+  }>(
+    `select id, job_name, application_id, status,
+            extract(epoch from now() - coalesce(started_at, created_at))::float8 as age
+       from agent_run where status in ('queued', 'running')`,
+  );
+  const stale = rows.filter((r) =>
+    r.status === "queued" ? r.age > QUEUED_MAX_AGE_SECONDS : opts.assumeNoneRunning || r.age > (limits[r.job_name] ?? Infinity),
+  );
+  for (const r of stale) {
+    const error = r.status === "queued" ? "This run was never picked up. Try again." : "The worker stopped before this run finished. Try again.";
+    await failRun(ctx, { id: r.id, jobName: r.job_name, applicationId: r.application_id }, error);
+  }
+  return stale.length;
 }
 
 // ─── Blockers ───────────────────────────────────────────────────────────────
@@ -162,10 +236,7 @@ export async function answerBlocker(
     if (!b) throw new TransitionError("not_found", "Blocker not found.");
     if (b.answeredAt) throw new TransitionError("illegal", "This Blocker was already answered.");
 
-    await tx
-      .update(blocker)
-      .set({ answer: text, answeredAt: new Date(), savedToAnswerBank: true })
-      .where(eq(blocker.id, blockerId));
+    await tx.update(blocker).set({ answer: text, answeredAt: new Date() }).where(eq(blocker.id, blockerId));
 
     // Job-only answers get an application-scoped key so they never leak into other jobs.
     const key = opts.reuse ? b.questionKey : `${b.questionKey}@${b.applicationId}`;
@@ -176,14 +247,11 @@ export async function answerBlocker(
         questionVariants: [b.question],
         answer: text,
         reusable: opts.reuse,
-        applicationId: opts.reuse ? null : b.applicationId,
-        sourceBlockerId: b.id,
       })
       .onConflictDoUpdate({
         target: answerBank.questionKey,
         set: {
           answer: text,
-          sourceBlockerId: b.id,
           questionVariants: sql`(select array_agg(distinct v) from unnest(${answerBank.questionVariants} || array[${b.question}]::text[]) v)`,
         },
       });
@@ -204,6 +272,19 @@ export async function answerBlocker(
       await notify(tx, { type: "application", applicationId: app!.id, status: app!.status, hasOpenBlocker: true });
       return { resumed: false };
     }
+
+    // If resuming can't pass its guards (say an approved PDF changed), keep the answer and hand the
+    // card back to Approved with the reason, instead of rolling back and losing what the owner typed.
+    const [app] = await tx.select().from(application).where(eq(application.id, b.applicationId));
+    const reason = await checkGuards(getRule("resume")!.guards, tx, app!, ctx);
+    if (reason) {
+      await tx
+        .update(agentRun)
+        .set({ status: "superseded", finishedAt: new Date() })
+        .where(and(eq(agentRun.applicationId, b.applicationId), eq(agentRun.status, "paused")));
+      await transitionInTx(ctx, tx, client, b.applicationId, "prefillFailed", { actor: "system", error: reason });
+      return { resumed: false };
+    }
     const res = await transitionInTx(ctx, tx, client, b.applicationId, "resume", { note: "All blockers answered" });
     return { resumed: true, runId: res.runId };
   });
@@ -218,7 +299,7 @@ export async function lookupAnswer(
   const key = questionKey(question);
   const { rows } = await ctx.pool.query<{ answer: string }>(
     `select answer from answer_bank
-      where question_key = $1 or question_key = $2
+      where (question_key = $1 or question_key = $2) and answer <> ''
       order by (question_key = $2) desc limit 1`,
     [key, `${key}@${applicationId}`],
   );

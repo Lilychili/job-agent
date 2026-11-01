@@ -1,4 +1,4 @@
-import { appendLog, claimRun, finishRun, transition, type CoreContext, type Run } from "@jobagent/core";
+import { appendLog, claimRun, failRun, finishRun, type CoreContext, type Run } from "@jobagent/core";
 import { QUEUES } from "@jobagent/queue";
 import type { JobName } from "@jobagent/core";
 
@@ -18,13 +18,6 @@ export interface RunHelpers {
 export type Outcome =
   | { kind: "succeeded"; output?: Record<string, unknown> }
   | { kind: "paused" };
-
-/** How a failed or timed-out run rolls back the card, per queue. */
-const FAILURE_ACTION: Partial<Record<JobName, string>> = {
-  "pen.craft": "craftFailed",
-  "shipper.prefill": "prefillFailed",
-  "shipper.resume": "prefillFailed",
-};
 
 /**
  * Wraps every handler: claim the run (skip duplicates), enforce the timeout,
@@ -64,25 +57,12 @@ export function runner(
         const message = err instanceof Error ? err.message : String(err);
         console.error(`[${name}] run ${run.id} failed:`, message);
         await appendLog(ctx, run.id, message, "error").catch(() => {});
-        await fail(ctx, name, run, message);
+        await failRun(ctx, run, message);
       } finally {
         clearTimeout(timer);
       }
     }
   };
-}
-
-async function fail(ctx: CoreContext, name: JobName, run: Run, error: string) {
-  const action = FAILURE_ACTION[name];
-  if (action && run.applicationId) {
-    try {
-      await transition(ctx, run.applicationId, action, { actor: "system", runId: run.id, error });
-      return;
-    } catch (e) {
-      console.error(`[${name}] rollback transition failed:`, e);
-    }
-  }
-  await finishRun(ctx, run.id, { status: "failed", error });
 }
 
 export const sleep = (ms: number, signal?: AbortSignal) =>
