@@ -334,7 +334,11 @@ label.btn { cursor: pointer; }
 .progress-line { color: var(--muted); }
 .progress-line strong { color: var(--text); }
 .ok-mark { color: var(--ok); }
-.answer .actions { align-items: center; }
+.field-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.field-error { color: var(--danger); font-size: 13px; font-weight: 600; }
+.char-count { color: var(--muted); font-size: 12px; margin-left: auto; white-space: nowrap; }
+.char-count.over { color: var(--danger); font-weight: 600; }
+[aria-invalid="true"] { border-color: var(--danger) !important; }
 .blocker-card .meta { font: 400 12px var(--font-code); letter-spacing: 0.04em; text-transform: uppercase; }
 .empty-state { align-items: flex-start; }
 

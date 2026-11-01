@@ -10,6 +10,7 @@ import {
   type FieldContext,
   type RunLogEntry,
 } from "@jobagent/db";
+import { MAX_LONG_ANSWER_CHARS } from "./answers";
 import { TransitionError, type CoreContext } from "./context";
 import { checkGuards } from "./guards";
 import { getRule, JOBS, type JobName } from "./machine";
@@ -231,6 +232,7 @@ export async function answerBlocker(
 ): Promise<{ resumed: boolean; runId?: string }> {
   const text = answer.trim();
   if (!text) throw new TransitionError("guard", "The answer can't be empty.");
+  if (text.length > MAX_LONG_ANSWER_CHARS) throw new TransitionError("guard", `Keep the answer under ${MAX_LONG_ANSWER_CHARS.toLocaleString("en")} characters.`);
   return withTx(ctx.pool, async (tx, client) => {
     const [b] = await tx.select().from(blocker).where(eq(blocker.id, blockerId)).for("update");
     if (!b) throw new TransitionError("not_found", "Blocker not found.");
