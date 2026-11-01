@@ -29,7 +29,7 @@ Fact IDs are stable so Pen can cite them.
 |---|---|---|
 | questionKey | text unique | Normalized (lowercase, stripped punctuation, synonyms mapped). Job-only answers end in `@<applicationId>` |
 | questionVariants | text[] | Raw phrasings seen |
-| answer | text | Empty means "not answered yet": seeded questions start this way and lookups ignore them |
+| answer | text | Empty means "not answered yet": seeded questions start this way and lookups ignore them. Format and length rules are `answerRule` in `packages/core/src/answers.ts` |
 | kind | enum: text / choice / number / date / consent | |
 | reusable | bool | If false, only applies to the job it was created for |
 

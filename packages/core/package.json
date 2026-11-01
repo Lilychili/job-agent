@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./machine": "./src/machine.ts",
-    "./origin": "./src/origin.ts"
+    "./origin": "./src/origin.ts",
+    "./answers": "./src/answers.ts"
   },
   "scripts": {
     "test": "vitest run",

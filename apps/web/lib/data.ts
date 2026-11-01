@@ -1,6 +1,6 @@
 import "server-only";
 import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
-import { DEFAULT_HINTS, maskKey } from "@jobagent/core";
+import { answerRule, DEFAULT_HINTS, maskKey, type AnswerRule } from "@jobagent/core";
 import { agentRun, answerBank, application, blocker, job, preferences, profile, settings, type Contact, type ProfileFact } from "@jobagent/db";
 import { getDb } from "./server";
 
@@ -36,6 +36,7 @@ export type AnswerRow = {
   kind: "text" | "choice" | "number" | "date" | "consent";
   hint: string | null;
   isDefault: boolean;
+  rule: AnswerRule;
 };
 
 export async function loadAnswers(): Promise<AnswerRow[]> {
@@ -52,6 +53,7 @@ export async function loadAnswers(): Promise<AnswerRow[]> {
     kind: r.kind,
     hint: DEFAULT_HINTS[r.questionKey] ?? null,
     isDefault: Object.hasOwn(DEFAULT_HINTS, r.questionKey),
+    rule: answerRule(r.questionKey, r.kind),
   }));
 }
 
