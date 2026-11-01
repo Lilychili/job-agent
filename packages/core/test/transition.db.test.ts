@@ -306,6 +306,55 @@ describe("blockers", () => {
     const [b] = await env.db.select().from(blocker).where(and(eq(blocker.id, blockerId)));
     expect(b!.answer).toBe("2 weeks");
   });
+
+  it("holds a Blocker answer to the rules of a known question", async () => {
+    const { runId } = await applyingApp();
+    await env.db.insert(answerBank).values({ questionKey: "years_experience", questionVariants: ["Years of experience"], answer: "", kind: "number" });
+    const { blockerId } = await raiseBlocker(env.ctx, runId, {
+      question: "Years of experience",
+      fieldContext: { label: "Years", type: "text" },
+    });
+    await expectError(answerBlocker(env.ctx, blockerId, "lots", { reuse: true }), "guard");
+    const [b] = await env.db.select().from(blocker).where(eq(blocker.id, blockerId));
+    expect(b!.answeredAt).toBeNull();
+    expect((await answerBlocker(env.ctx, blockerId, "7", { reuse: true })).resumed).toBe(true);
+  });
+
+  it("a dismissed run can't raise a Blocker or come back to life", async () => {
+    const { appId, runId } = await applyingApp();
+    await transition(env.ctx, appId, "dismiss");
+    await expect(
+      raiseBlocker(env.ctx, runId, { question: "Too late?", fieldContext: { label: "Late", type: "text" } }),
+    ).rejects.toThrow(/no longer active/);
+    const [run] = await env.db.select().from(agentRun).where(eq(agentRun.id, runId));
+    expect(run!.status).toBe("superseded");
+    expect((await status(appId)).hasOpenBlocker).toBe(false);
+  });
+});
+
+describe("a finished run can't act", () => {
+  it("refuses a late result once a newer run has taken over", async () => {
+    await seedProfile(env);
+    const { appId } = await makeApp(env, "shortlisted");
+    const first = await transition(env.ctx, appId, "craft");
+    await transition(env.ctx, appId, "craftFailed", { actor: "system", runId: first.runId, error: "Timed out" });
+    await transition(env.ctx, appId, "shortlist").catch(() => {});
+    const second = await transition(env.ctx, appId, "craft");
+
+    await expectError(transition(env.ctx, appId, "craftSucceeded", { actor: "system", runId: first.runId }), "illegal");
+    expect((await status(appId)).status).toBe("crafting");
+    const [run] = await env.db.select().from(agentRun).where(eq(agentRun.id, second.runId!));
+    expect(run!.status).toBe("queued");
+  });
+
+  it("refuses a run that belongs to another card", async () => {
+    await seedProfile(env);
+    const a = await makeApp(env, "shortlisted");
+    const b = await makeApp(env, "shortlisted");
+    const runA = await transition(env.ctx, a.appId, "craft");
+    await transition(env.ctx, b.appId, "craft");
+    await expectError(transition(env.ctx, b.appId, "craftSucceeded", { actor: "system", runId: runA.runId }), "illegal");
+  });
 });
 
 describe("search", () => {

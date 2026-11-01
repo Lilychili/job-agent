@@ -10,7 +10,7 @@ import {
   type FieldContext,
   type RunLogEntry,
 } from "@jobagent/db";
-import { MAX_LONG_ANSWER_CHARS } from "./answers";
+import { answerRule, checkAnswer } from "./answers";
 import { TransitionError, type CoreContext } from "./context";
 import { checkGuards } from "./guards";
 import { getRule, JOBS, type JobName } from "./machine";
@@ -186,6 +186,7 @@ export async function raiseBlocker(
   return withTx(ctx.pool, async (tx) => {
     const [run] = await tx.select().from(agentRun).where(eq(agentRun.id, runId)).for("update");
     if (!run?.applicationId) throw new Error("Blockers need a run attached to an application.");
+    if (!["queued", "running", "paused"].includes(run.status)) throw new Error("This run is no longer active.");
     const [row] = await tx
       .insert(blocker)
       .values({
@@ -232,11 +233,15 @@ export async function answerBlocker(
 ): Promise<{ resumed: boolean; runId?: string }> {
   const text = answer.trim();
   if (!text) throw new TransitionError("guard", "The answer can't be empty.");
-  if (text.length > MAX_LONG_ANSWER_CHARS) throw new TransitionError("guard", `Keep the answer under ${MAX_LONG_ANSWER_CHARS.toLocaleString("en")} characters.`);
   return withTx(ctx.pool, async (tx, client) => {
     const [b] = await tx.select().from(blocker).where(eq(blocker.id, blockerId)).for("update");
     if (!b) throw new TransitionError("not_found", "Blocker not found.");
     if (b.answeredAt) throw new TransitionError("illegal", "This Blocker was already answered.");
+
+    // A seeded question keeps its rules when it comes in through a Blocker.
+    const [known] = await tx.select({ kind: answerBank.kind }).from(answerBank).where(eq(answerBank.questionKey, b.questionKey));
+    const problem = checkAnswer(answerRule(b.questionKey, known?.kind ?? "text"), text);
+    if (problem) throw new TransitionError("guard", problem);
 
     await tx.update(blocker).set({ answer: text, answeredAt: new Date() }).where(eq(blocker.id, blockerId));
 

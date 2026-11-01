@@ -1,5 +1,6 @@
+import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
-import { cliArgs, cliEnv, resolveClaudeCli } from "../src/cli";
+import { cliArgs, cliEnv, collectText, resolveClaudeCli } from "../src/cli";
 import { authFromSettings } from "../src/provider";
 
 describe("cliEnv", () => {
@@ -8,6 +9,8 @@ describe("cliEnv", () => {
       PATH: "/bin",
       ANTHROPIC_API_KEY: "sk-ant-secret",
       ANTHROPIC_AUTH_TOKEN: "tok",
+      ANTHROPIC_BASE_URL: "https://proxy.example",
+      CLAUDE_CODE_USE_FOUNDRY: "1",
       CLAUDE_CODE_USE_BEDROCK: "1",
       CLAUDE_CODE_USE_VERTEX: "1",
     });
@@ -20,6 +23,7 @@ describe("cliArgs", () => {
     const args = cliArgs({ prompt: "x", system: 'be "careful"; rm -rf', schema: { type: "object" }, model: "haiku" });
     expect(args).toEqual(expect.arrayContaining(["-p", "--no-session-persistence", "--disable-slash-commands", "--strict-mcp-config"]));
     expect(args[args.indexOf("--tools") + 1]).toBe("");
+    expect(args[args.indexOf("--setting-sources") + 1]).toBe("");
     expect(args[args.indexOf("--system-prompt") + 1]).toBe('be "careful"; rm -rf');
     expect(args[args.indexOf("--json-schema") + 1]).toBe('{"type":"object"}');
     expect(args[args.indexOf("--model") + 1]).toBe("haiku");
@@ -27,6 +31,18 @@ describe("cliArgs", () => {
 
   it("never puts the user's prompt (the CV) on the command line", () => {
     expect(cliArgs({ prompt: "PRIVATE CV TEXT" }).join(" ")).not.toContain("PRIVATE");
+  });
+});
+
+describe("collectText", () => {
+  it("keeps a character whole when it is split across two chunks", async () => {
+    const stream = new PassThrough();
+    const out = collectText(stream);
+    const name = Buffer.from("Лилия");
+    stream.write(name.subarray(0, 3));
+    stream.end(name.subarray(3));
+    await new Promise((resolve) => stream.on("end", resolve));
+    expect(out.text).toBe("Лилия");
   });
 });
 

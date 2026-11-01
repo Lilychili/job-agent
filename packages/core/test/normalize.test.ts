@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_QUESTIONS } from "../src/answers";
 import { atsFromUrl, canonicalManualUrl, canonicalUrl, normalizeCompany, normalizeTitle, questionKey } from "../src/normalize";
 
 describe("canonicalUrl", () => {
@@ -58,6 +59,12 @@ describe("canonicalManualUrl", () => {
   it("drops any query on a known ATS", () => {
     expect(canonicalManualUrl("https://jobs.lever.co/acme/1?lever-source=x")).toBe("https://jobs.lever.co/acme/1");
   });
+  it("keeps the Greenhouse parameters that name the job", () => {
+    const embed = "https://boards.greenhouse.io/embed/job_app";
+    expect(canonicalManualUrl(`${embed}?token=1&utm_source=x`)).toBe(`${embed}?token=1`);
+    expect(canonicalManualUrl(`${embed}?token=1`)).not.toBe(canonicalManualUrl(`${embed}?token=2`));
+    expect(canonicalManualUrl("https://boards.greenhouse.io/acme?gh_jid=5&gh_src=x")).toBe("https://boards.greenhouse.io/acme?gh_jid=5");
+  });
   it("keeps the query on a lookalike of a known ATS", () => {
     expect(canonicalManualUrl("https://notgreenhouse.io/view?id=1")).toBe("https://notgreenhouse.io/view?id=1");
   });
@@ -94,7 +101,7 @@ describe("questionKey", () => {
     expect(questionKey("What is your notice period?")).toBe("start_date");
     expect(questionKey("When can you start?")).toBe("start_date");
     expect(questionKey("Do you require visa sponsorship?")).toBe("visa_sponsorship");
-    expect(questionKey("Salary expectations (EUR)")).toBe("salary_expectation");
+    expect(questionKey("Salary expectations")).toBe("salary_expectation");
   });
   it("falls back to a slug for unknown questions", () => {
     expect(questionKey("Favourite editor?")).toBe("favourite_editor");
@@ -104,12 +111,34 @@ describe("questionKey", () => {
 describe("questionKey never merges questions with different answers", () => {
   // A wrong match writes a false statement on an application; a miss only raises a Blocker.
   it("keeps right-to-work and sponsorship apart", () => {
-    for (const q of ["Do you have the right to work in Spain?", "Work authorization status", "Are you legally authorized to work here?"]) {
+    for (const q of ["Right to work", "Work authorization status", "Are you legally authorized to work here?"]) {
       expect(questionKey(q)).toBe("work_authorization");
     }
     for (const q of ["Will you now or in the future require visa sponsorship?", "Do you need sponsorship?"]) {
       expect(questionKey(q)).toBe("visa_sponsorship");
     }
+  });
+
+  it.each([
+    ["How many years of experience do you have with Python?", "How many years of experience do you have with Go?"],
+    ["Are you authorized to work in the United States?", "Are you authorized to work in Germany?"],
+    ["Are you willing to relocate?", "Do you require relocation assistance?"],
+    ["Do you have experience with data processing pipelines?", "I consent to the processing of my personal data for this application."],
+    ["Describe a portfolio project you are proud of", "Portfolio or website URL"],
+    ["Salary expectations (EUR)", "Salary expectations (USD)"],
+    [`Please describe in detail ${"a situation where you led a team ".repeat(3)}and what happened`, `Please describe in detail ${"a situation where you led a team ".repeat(3)}and what you learned`],
+  ])("keeps apart: %s", (a, b) => {
+    expect(questionKey(a)).not.toBe(questionKey(b));
+  });
+
+  it("gives every seeded question and wording the same key", () => {
+    for (const q of DEFAULT_QUESTIONS) {
+      for (const variant of q.variants) expect(questionKey(variant)).toBe(questionKey(q.question));
+    }
+  });
+
+  it("keeps keys short", () => {
+    expect(questionKey("why ".repeat(100)).length).toBeLessThanOrEqual(80);
   });
 
   it("doesn't guess at questions that only sound like a known one", () => {

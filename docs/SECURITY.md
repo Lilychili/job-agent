@@ -14,8 +14,8 @@ Job postings and application pages are attacker-controllable text.
 
 - Claude API key (optional): entered once in Settings, encrypted with AES-256-GCM using a key from env (`APP_ENCRYPTION_KEY`), decrypted only at call time, in the worker for agent runs and in the web server for "Test connection".
 - Never returned to the browser; UI shows `…last4`. Never logged (redact in logger).
-- No login: the app binds to 127.0.0.1, and `apps/web/proxy.ts` rejects anything else that could reach it through the owner's browser: a foreign `Host` (DNS rebinding) and cross-site writes (`Origin` / `Sec-Fetch-Site`).
-- Claude Code provider: agents run the owner's signed-in `claude -p` with no tools, no MCP servers, no session, in a fresh empty directory, with API-key variables removed from its environment so it can't bill the API. Prompts go over stdin, never the command line; the model name is validated so it can't pose as a flag.
+- No login: the app binds to 127.0.0.1, and `apps/web/proxy.ts` rejects anything else that could reach it through the owner's browser: a foreign `Host` (DNS rebinding) and cross-site writes (`Origin` / `Sec-Fetch-Site`). Pages also refuse to be framed, so another site can't trick the owner into a click.
+- Claude Code provider: agents run the owner's signed-in `claude -p` with no tools, no MCP servers, no session, none of their settings or hooks, in a fresh empty directory, with API-key variables removed from its environment so it can't bill the API. Prompts go over stdin, never the command line; the model name is validated so it can't pose as a flag.
 
 ## 3. Documents
 

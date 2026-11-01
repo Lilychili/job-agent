@@ -36,6 +36,9 @@ export function AppNav() {
     onEvent: (type) => {
       if (type === "application" || type === "reconnected") void refresh();
     },
+    onStatus: (status) => {
+      if (status === "live") void refresh();
+    },
   });
 
   return (
