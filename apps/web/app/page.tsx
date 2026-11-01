@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Landscape, MeditatorFigure } from "./Landscape";
+import { Landscape } from "./Landscape";
+import { MeditatorFigure } from "./Meditator";
 
 export default function Home() {
   return (
