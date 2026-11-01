@@ -33,7 +33,7 @@ export const applicationStatus = pgEnum("application_status", [
   "archived",
 ]);
 
-export const ats = pgEnum("ats", ["greenhouse", "lever", "ashby"]);
+export const ats = pgEnum("ats", ["greenhouse", "lever", "ashby", "other"]); // other: added by hand from anywhere else
 export const remotePreference = pgEnum("remote_preference", ["onsite", "hybrid", "remote", "any"]);
 export const jobRemote = pgEnum("job_remote", ["onsite", "hybrid", "remote", "unknown"]);
 export const answerKind = pgEnum("answer_kind", ["text", "choice", "number", "date", "consent"]);

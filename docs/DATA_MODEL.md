@@ -36,7 +36,7 @@ Fact IDs are stable so Pen can cite them.
 ## Job
 | Field | Type | Notes |
 |---|---|---|
-| ats | enum | greenhouse / lever / ashby |
+| ats | enum | greenhouse / lever / ashby / other (added by hand from anywhere else) |
 | sourceUrl | text | |
 | canonicalUrl | text | Strip query, fragment, tracking params, trailing slash; lowercase host |
 | company, companyNorm | text | Norm: lowercase, strip legal suffix (Inc, GmbH, SAS, Ltd…), collapse whitespace |

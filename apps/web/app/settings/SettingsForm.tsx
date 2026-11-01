@@ -119,9 +119,11 @@ export function SettingsForm({ initial, encryptionReady }: { initial: View; encr
             </span>
           </label>
         </div>
-        <SaveBar state={providerState} dirty={false}>
-          {null}
-        </SaveBar>
+        {providerState.kind !== "idle" && (
+          <SaveBar state={providerState} dirty={false}>
+            {null}
+          </SaveBar>
+        )}
       </section>
 
       {view.provider === "cli" ? (
@@ -192,20 +194,6 @@ export function SettingsForm({ initial, encryptionReady }: { initial: View; encr
         </>
       )}
 
-      <section className="panel">
-        <h2>Your data</h2>
-        <p className="hint">Everything is stored on this computer. Export gives you all of it as a JSON file (never your API key).</p>
-        <div className="actions">
-          <a className="btn" href="/api/data/export" download>
-            Export all data
-          </a>
-          <button type="button" className="btn ghost" onClick={deleteEverything}>
-            Delete all data
-          </button>
-        </div>
-        {deleteError && <p className="error">{deleteError}</p>}
-      </section>
-
       <form className="panel" onSubmit={saveModel}>
         <h2>Default model</h2>
         <p className="hint">Used for reading your CV. Leave empty for the default (claude-sonnet-5-5).</p>
@@ -224,6 +212,20 @@ export function SettingsForm({ initial, encryptionReady }: { initial: View; encr
           </button>
         </SaveBar>
       </form>
+
+      <section className="panel">
+        <h2>Your data</h2>
+        <p className="hint">Everything is stored on this computer. Export gives you all of it as a JSON file (never your API key).</p>
+        <div className="actions">
+          <a className="btn" href="/api/data/export" download>
+            Export all data
+          </a>
+          <button type="button" className="btn ghost" onClick={deleteEverything}>
+            Delete all data
+          </button>
+        </div>
+        {deleteError && <p className="error">{deleteError}</p>}
+      </section>
     </>
   );
 }

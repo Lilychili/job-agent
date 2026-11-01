@@ -8,6 +8,11 @@ if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 const config: NextConfig = {
   transpilePackages: ["@jobagent/core", "@jobagent/db", "@jobagent/queue", "@jobagent/agents"],
   serverExternalPackages: ["pg", "pg-boss", "unpdf", "mammoth"],
+  redirects: () => [
+    { source: "/blockers", destination: "/questions", permanent: false },
+    { source: "/answers", destination: "/questions", permanent: false },
+    { source: "/preferences", destination: "/profile/looking-for", permanent: false },
+  ],
 };
 
 export default config;

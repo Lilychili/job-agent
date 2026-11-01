@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppNav } from "@/components/AppNav";
 import { BlockerAnswerForm } from "@/components/BlockerAnswerForm";
+import { TopBar } from "@/components/TopBar";
 import { api } from "@/lib/api";
 import { useAppEvents } from "@/lib/useAppEvents";
 import { COLUMNS } from "@jobagent/core/machine";
 import type { BoardCard, BoardData } from "@/lib/board";
+import { AddJobDialog } from "./AddJobDialog";
 
 type Conn = "connecting" | "live" | "offline";
 
-export function Board({ initial }: { initial: BoardData }) {
+export function Board({ initial, setup }: { initial: BoardData; setup: { done: number; total: number } | null }) {
   const [data, setData] = useState(initial);
   const [conn, setConn] = useState<Conn>("connecting");
   const [busy, setBusy] = useState<Set<string>>(new Set());
@@ -72,15 +73,20 @@ export function Board({ initial }: { initial: BoardData }) {
 
   return (
     <div className="shell">
-      <header className="topbar">
-        <Link href="/" className="brand" aria-label="Job Agent home">
-          <span className="brand-mark" aria-hidden>◆</span>
-          <h1>Job Agent</h1>
+      <TopBar />
+      {setup && (
+        <Link className="setup-banner" href="/setup">
+          {setup.done} of {setup.total} setup steps done. Continue setup <span aria-hidden>→</span>
         </Link>
-        <AppNav />
+      )}
+      <div className="board-bar">
+        <h1 className="sr-only">Board</h1>
         <div className="status">
           <StatusDot ok={conn === "live"} label={conn === "live" ? "Live" : conn === "connecting" ? "Connecting" : "Reconnecting"} />
           <StatusDot ok={!!workerAlive} label={workerAlive ? "Worker running" : "Worker offline"} />
+        </div>
+        <div className="actions">
+          <AddJobDialog onAdded={refetch} />
           <button
             className="btn primary"
             disabled={data.searchRunning || busy.has("search")}
@@ -95,7 +101,7 @@ export function Board({ initial }: { initial: BoardData }) {
             )}
           </button>
         </div>
-      </header>
+      </div>
 
       <main className="board" aria-label="Applications board">
         {COLUMNS.map((col) => {

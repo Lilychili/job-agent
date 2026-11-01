@@ -24,7 +24,7 @@ If you'll use an API key rather than Claude Code, put a 32-byte key in `.env` as
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-Open http://127.0.0.1:3000/setup and follow the four steps: connect Claude → Profile (upload a PDF/DOCX CV or type it in, then confirm) → Preferences → Answers. Nothing runs against your Profile until you confirm it.
+Open http://127.0.0.1:3000/setup and follow the four steps: connect Claude → Profile (upload a PDF/DOCX CV or type it in, then confirm) → What I'm looking for → Questions. Nothing runs against your Profile until you confirm it.
 
 To click through the board without onboarding, `pnpm db:seed` adds a confirmed demo Profile and Preferences. Skip it for real use.
 
@@ -82,6 +82,7 @@ docs/             The MVP plan
 - The app has no login. `apps/web/proxy.ts` refuses requests that don't come from this machine, so open it at 127.0.0.1 or localhost, not through a tunnel or a LAN address.
 - If the worker dies mid-run, the run is failed and the card rolled back when it next starts.
 - Settings has "Export all data" and "Delete all data".
+- **Add job** on the board puts a job you found yourself in Found. It needs a link, is deduped like Scout's finds, and a dismissed job can't be added back.
 
 ## Next: M2
 

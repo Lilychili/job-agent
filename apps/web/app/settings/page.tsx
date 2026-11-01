@@ -16,7 +16,7 @@ function encryptionReady(): boolean {
 
 export default async function SettingsPage() {
   return (
-    <PageShell title="Settings" lead="Your Claude API key is encrypted before it is stored and is never sent back to the browser.">
+    <PageShell title="Settings" lead="Choose how agents reach Claude, and manage the data stored on this computer.">
       <SettingsForm initial={await loadSettingsView()} encryptionReady={encryptionReady()} />
     </PageShell>
   );

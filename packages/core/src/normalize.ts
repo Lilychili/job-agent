@@ -14,6 +14,32 @@ export function canonicalUrl(raw: string): string {
   return `https://${host}${path}`;
 }
 
+const ATS_HOSTS = [
+  [/(^|.)greenhouse.io$/, "greenhouse"],
+  [/^jobs.lever.co$/, "lever"],
+  [/^jobs.ashbyhq.com$/, "ashby"],
+] as const;
+
+export function atsFromUrl(raw: string): (typeof ATS_HOSTS)[number][1] | null {
+  const { hostname } = new URL(raw);
+  return ATS_HOSTS.find(([re]) => re.test(hostname))?.[1] ?? null;
+}
+
+const TRACKING_PARAM = /^(utm_.*|gclid|fbclid|msclkid|trk|refid)$/i;
+
+/**
+ * canonicalUrl for a link pasted by the owner. Outside the known ATSs the query can be
+ * the only thing that identifies the job (?jk=…), so it stays, minus tracking.
+ */
+export function canonicalManualUrl(raw: string): string {
+  const base = canonicalUrl(raw);
+  if (atsFromUrl(raw)) return base;
+  const params = [...new URL(raw).searchParams]
+    .filter(([key]) => !TRACKING_PARAM.test(key))
+    .sort(([a], [b]) => a.localeCompare(b));
+  return params.length ? `${base}?${new URLSearchParams(params)}` : base;
+}
+
 const LEGAL_SUFFIX =
   /\b(incorporated|inc|llc|l\.l\.c|ltd|limited|gmbh|ag|se|kg|sa|sas|sarl|srl|spa|s\.a|s\.l|sl|bv|b\.v|nv|plc|oy|ab|as|co|corp|corporation|company)\.?$/i;
 
