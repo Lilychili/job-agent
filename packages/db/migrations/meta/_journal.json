@@ -36,6 +36,13 @@
       "when": 1793496955523,
       "tag": "0004_answer_keys_and_singletons",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793522377660,
+      "tag": "0005_boring_network",
+      "breakpoints": true
     }
   ]
 }

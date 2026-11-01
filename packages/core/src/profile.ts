@@ -1,6 +1,6 @@
 // Validation for the owner-edited Profile. Agents only ever see what passes through here.
 import { randomUUID } from "node:crypto";
-import { ats, remotePreference, type Contact, type FactKind, type ProfileFact, type preferences } from "@jobagent/db";
+import { remotePreference, type ats, type Contact, type FactKind, type ProfileFact, type preferences } from "@jobagent/db";
 
 export const FACT_KINDS = ["role", "skill", "education", "achievement", "cert", "language"] as const satisfies readonly FactKind[];
 
@@ -18,7 +18,7 @@ export function newFactId(kind: FactKind): string {
 
 const DATE = /^\d{4}(-(0[1-9]|1[0-2]))?$/;
 
-function str(v: unknown): string {
+export function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
@@ -86,7 +86,8 @@ export function parseFacts(input: unknown): ProfileFact[] {
 
 const list = (v: unknown): string[] => [...new Set((Array.isArray(v) ? v : []).map(str).filter(Boolean))];
 
-type Ats = (typeof ats.enumValues)[number];
+const BOARD_ATS = ["greenhouse", "lever", "ashby"] as const satisfies readonly (typeof ats.enumValues)[number][]; // the ones Scout can read
+type BoardAts = (typeof BOARD_ATS)[number];
 type Remote = (typeof remotePreference.enumValues)[number];
 
 export function parsePreferences(input: unknown): Omit<typeof preferences.$inferInsert, "id" | "createdAt" | "updatedAt"> {
@@ -110,10 +111,10 @@ export function parsePreferences(input: unknown): Omit<typeof preferences.$infer
     .map((x) => x as { ats?: string; boardToken?: unknown })
     .filter((x) => str(x.boardToken))
     .map((x) => {
-      if (!ats.enumValues.includes(x.ats as Ats)) throw new ValidationError(`Unknown job board type "${x.ats}".`);
+      if (!BOARD_ATS.includes(x.ats as BoardAts)) throw new ValidationError(`Unknown job board type "${x.ats}".`);
       const boardToken = str(x.boardToken);
       if (!/^[A-Za-z0-9._-]+$/.test(boardToken)) throw new ValidationError(`"${boardToken}" doesn't look like a board name.`);
-      return { ats: x.ats as Ats, boardToken };
+      return { ats: x.ats as BoardAts, boardToken };
     });
 
   return {

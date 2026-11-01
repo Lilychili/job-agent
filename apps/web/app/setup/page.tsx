@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PageShell } from "@/components/PageShell";
-import { loadSetupStatus } from "@/lib/data";
+import { loadSetupStatus, setupProgress } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -27,21 +27,21 @@ export default async function SetupPage() {
       cta: s.profile === "none" ? "Start" : s.profile === "draft" ? "Review" : "Edit",
     },
     {
-      href: "/preferences",
+      href: "/profile/looking-for",
       title: "Set your search criteria",
       done: s.preferences,
       detail: s.preferences ? "Saved." : "Locations, stack, exclusions and the companies to search. About 5 minutes.",
       cta: s.preferences ? "Edit" : "Set up",
     },
     {
-      href: "/answers",
+      href: "/questions",
       title: "Answer the common questions",
       done: s.answerTotal > 0 && s.answered === s.answerTotal,
       detail: `${s.answered} of ${s.answerTotal} answered. Skip any; you'll be asked when a form needs it.`,
       cta: s.answered === 0 ? "Answer" : "Continue",
     },
   ];
-  const ready = s.key && s.profile === "confirmed" && s.preferences;
+  const { ready, started } = setupProgress(s);
 
   return (
     <PageShell title="Set up" lead="Four short steps. You can do them in any order and come back to change anything.">
@@ -68,9 +68,11 @@ export default async function SetupPage() {
             ? "Head to the board and run your first search."
             : "Finish the key, a confirmed Profile and your criteria, then search from the board."}
         </p>
-        <Link className={`btn${ready ? " primary big" : ""}`} href="/board">
-          Open the board
-        </Link>
+        {started && (
+          <Link className={`btn${ready ? " primary big" : ""}`} href="/board">
+            Open the board
+          </Link>
+        )}
       </div>
     </PageShell>
   );

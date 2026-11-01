@@ -107,6 +107,13 @@ interface SetupStatus {
   answerTotal: number;
 }
 
+/** Connecting Claude, a confirmed Profile and criteria are required; Search can run without Answers. */
+export function setupProgress(s: SetupStatus) {
+  const required = [s.key, s.profile === "confirmed", s.preferences];
+  const done = required.filter(Boolean).length;
+  return { done, total: required.length, ready: done === required.length, started: s.profile !== "none" || s.preferences };
+}
+
 export async function loadSetupStatus(): Promise<SetupStatus> {
   const [settingsView, p, prefs, answers] = await Promise.all([
     loadSettingsView(),

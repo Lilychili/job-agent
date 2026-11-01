@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalUrl, normalizeCompany, normalizeTitle, questionKey } from "../src/normalize";
+import { atsFromUrl, canonicalManualUrl, canonicalUrl, normalizeCompany, normalizeTitle, questionKey } from "../src/normalize";
 
 describe("canonicalUrl", () => {
   it("drops query, fragment, trailing slash, www and case in host", () => {
@@ -14,6 +14,52 @@ describe("canonicalUrl", () => {
   });
   it("keeps path case (ATS ids can be case-sensitive)", () => {
     expect(canonicalUrl("https://jobs.ashbyhq.com/Acme/AbC")).toBe("https://jobs.ashbyhq.com/Acme/AbC");
+  });
+});
+
+describe("atsFromUrl", () => {
+  it.each([
+    ["boards.greenhouse.io", "greenhouse"],
+    ["job-boards.greenhouse.io", "greenhouse"],
+    ["greenhouse.io", "greenhouse"],
+    ["jobs.lever.co", "lever"],
+    ["jobs.ashbyhq.com", "ashby"],
+  ])("%s is %s", (host, expected) => {
+    expect(atsFromUrl(`https://${host}/acme/1`)).toBe(expected);
+  });
+
+  it.each([
+    "notgreenhouse.io",
+    "fakegreenhouse-io",
+    "greenhouse.io.evil.com",
+    "jobs-lever.co",
+    "jobsxlever.co",
+    "notjobs.lever.co",
+    "jobs-ashbyhq.com",
+    "fooashbyhq.com",
+  ])("%s is not a known ATS", (host) => {
+    expect(atsFromUrl(`https://${host}/acme/1`)).toBeNull();
+  });
+});
+
+describe("canonicalManualUrl", () => {
+  it("keeps a query that identifies the job", () => {
+    expect(canonicalManualUrl("https://board.example/view?jk=1")).not.toBe(canonicalManualUrl("https://board.example/view?jk=2"));
+  });
+  it("ignores parameter order", () => {
+    expect(canonicalManualUrl("https://board.example/view?b=2&a=1")).toBe(canonicalManualUrl("https://board.example/view?a=1&b=2"));
+  });
+  it("drops a query that is only tracking", () => {
+    expect(canonicalManualUrl("https://board.example/view/1?utm_source=x&gclid=y")).toBe("https://board.example/view/1");
+  });
+  it("drops tracking and keeps the rest", () => {
+    expect(canonicalManualUrl("https://board.example/view?jk=1&utm_source=x")).toBe("https://board.example/view?jk=1");
+  });
+  it("drops any query on a known ATS", () => {
+    expect(canonicalManualUrl("https://jobs.lever.co/acme/1?lever-source=x")).toBe("https://jobs.lever.co/acme/1");
+  });
+  it("keeps the query on a lookalike of a known ATS", () => {
+    expect(canonicalManualUrl("https://notgreenhouse.io/view?id=1")).toBe("https://notgreenhouse.io/view?id=1");
   });
 });
 

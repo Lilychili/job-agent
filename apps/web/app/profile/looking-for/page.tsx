@@ -1,10 +1,11 @@
 import { PageShell } from "@/components/PageShell";
 import { loadPreferences } from "@/lib/data";
+import { ProfileTabs } from "../ProfileTabs";
 import { PreferencesForm, type PrefsValue } from "./PreferencesForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function PreferencesPage() {
+export default async function LookingForPage() {
   const p = await loadPreferences();
   const initial: PrefsValue = {
     locations: p?.locations ?? [],
@@ -18,7 +19,8 @@ export default async function PreferencesPage() {
   };
   return (
     <PageShell
-      title="Preferences"
+      title="Profile"
+      tabs={<ProfileTabs active="looking-for" />}
       lead="Hard criteria for Search. Jobs that break these are filtered out in code before any AI sees them."
     >
       <PreferencesForm initial={initial} />

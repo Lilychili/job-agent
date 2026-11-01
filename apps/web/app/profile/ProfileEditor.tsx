@@ -40,7 +40,8 @@ const newKey = () => `k${++counter}`;
 
 const toFacts = (facts: ProfileFact[]): FactRow[] =>
   facts.map((f) => ({
-    key: newKey(),
+    // Saved facts key on their id: the counter differs between server and browser, which breaks hydration.
+    key: f.id || newKey(),
     id: f.id,
     kind: f.kind,
     text: f.text,
