@@ -32,7 +32,7 @@ export default function Home() {
           verified facts only, and prefills the form. You say yes at every step,
           and you press submit.
         </p>
-        <Link className="btn primary pill big" href="/board">
+        <Link className="btn primary big" href="/board">
           Find my next job <span aria-hidden>→</span>
         </Link>
         <ul className="hero-pills">

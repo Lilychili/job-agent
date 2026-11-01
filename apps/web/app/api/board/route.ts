@@ -1,12 +1,6 @@
 import { loadBoard } from "@/lib/board";
-import { errorResponse } from "@/lib/server";
+import { route } from "@/lib/route";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  try {
-    return Response.json(await loadBoard());
-  } catch (err) {
-    return errorResponse(err);
-  }
-}
+export const GET = route(async () => Response.json(await loadBoard()));

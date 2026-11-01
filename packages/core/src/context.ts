@@ -28,14 +28,18 @@ export interface CoreContext {
  */
 export function dataDirFromEnv(): string {
   const raw = process.env.DATA_DIR ?? "./data";
-  if (path.isAbsolute(raw)) return raw;
+  return path.resolve(repoRoot(), raw);
+}
+
+/** The monorepo root, whichever app we were started from. */
+export function repoRoot(): string {
   let dir = process.cwd();
   while (!existsSync(path.join(dir, "pnpm-workspace.yaml"))) {
     const up = path.dirname(dir);
-    if (up === dir) return path.resolve(raw);
+    if (up === dir) throw new Error("Could not find the repo root (pnpm-workspace.yaml).");
     dir = up;
   }
-  return path.resolve(dir, raw);
+  return dir;
 }
 
 export function resolveDataPath(ctx: Pick<CoreContext, "dataDir">, relative: string): string {

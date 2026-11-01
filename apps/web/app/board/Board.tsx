@@ -1,6 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AppNav } from "@/components/AppNav";
+import { BlockerAnswerForm } from "@/components/BlockerAnswerForm";
+import { api } from "@/lib/api";
+import { useAppEvents } from "@/lib/useAppEvents";
 import { COLUMNS } from "@jobagent/core/machine";
 import type { BoardCard, BoardData } from "@/lib/board";
 
@@ -15,8 +20,8 @@ export function Board({ initial }: { initial: BoardData }) {
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refetch = useCallback(async () => {
-    const res = await fetch("/api/board", { cache: "no-store" });
-    if (res.ok) setData(await res.json());
+    const res = await api<BoardData>("/api/board");
+    if (res.ok) setData(res.data);
   }, []);
 
   // Coalesce bursts of events (a transition can emit several) into one refetch.
@@ -25,23 +30,20 @@ export function Board({ initial }: { initial: BoardData }) {
     refetchTimer.current = setTimeout(() => void refetch(), 80);
   }, [refetch]);
 
+  useAppEvents({
+    onEvent: (type) => {
+      if (type !== "hello") scheduleRefetch();
+    },
+    onStatus: (status) => {
+      setConn(status);
+      if (status === "live") scheduleRefetch(); // catch up on anything missed while disconnected
+    },
+  });
+
   useEffect(() => {
-    const es = new EventSource("/api/events");
-    es.onopen = () => {
-      setConn("live");
-      scheduleRefetch(); // catch up on anything missed while disconnected
-    };
-    es.onerror = () => setConn("offline");
-    es.onmessage = (e) => {
-      const ev = JSON.parse(e.data) as { type: string };
-      if (ev.type !== "hello") scheduleRefetch();
-    };
     const tick = setInterval(() => setNow(Date.now()), 15_000);
-    return () => {
-      es.close();
-      clearInterval(tick);
-    };
-  }, [scheduleRefetch]);
+    return () => clearInterval(tick);
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -52,15 +54,8 @@ export function Board({ initial }: { initial: BoardData }) {
   async function post(key: string, url: string, body?: unknown) {
     setBusy((s) => new Set(s).add(key));
     try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string };
-        setToast(err.error ?? `Request failed (${res.status})`);
-      }
+      const res = await api(url, "POST", body);
+      if (!res.ok) setToast(res.error);
       await refetch();
       return res.ok;
     } finally {
@@ -78,10 +73,11 @@ export function Board({ initial }: { initial: BoardData }) {
   return (
     <div className="shell">
       <header className="topbar">
-        <div className="brand">
+        <Link href="/" className="brand" aria-label="Job Agent home">
           <span className="brand-mark" aria-hidden>◆</span>
           <h1>Job Agent</h1>
-        </div>
+        </Link>
+        <AppNav />
         <div className="status">
           <StatusDot ok={conn === "live"} label={conn === "live" ? "Live" : conn === "connecting" ? "Connecting" : "Reconnecting"} />
           <StatusDot ok={!!workerAlive} label={workerAlive ? "Worker running" : "Worker offline"} />
@@ -112,7 +108,7 @@ export function Board({ initial }: { initial: BoardData }) {
               </h2>
               <div className="cards">
                 {cards.map((c) => (
-                  <Card key={c.id} card={c} busy={busy} post={post} />
+                  <Card key={c.id} card={c} busy={busy} post={post} onChanged={refetch} />
                 ))}
                 {cards.length === 0 && <p className="empty">—</p>}
               </div>
@@ -134,10 +130,12 @@ function Card({
   card,
   busy,
   post,
+  onChanged,
 }: {
   card: BoardCard;
   busy: Set<string>;
   post: (key: string, url: string, body?: unknown) => Promise<boolean>;
+  onChanged: () => Promise<void>;
 }) {
   const blocked = card.blockers.length > 0;
   return (
@@ -180,7 +178,9 @@ function Card({
       {card.lastError && <p className="error">{card.lastError}</p>}
 
       {card.blockers.map((b) => (
-        <BlockerForm key={b.id} blocker={b} busy={busy.has(`b-${b.id}`)} post={post} />
+        <BlockerAnswerForm key={b.id} blockerId={b.id} question={b.question} className="blocker" onAnswered={onChanged}>
+          <p className="badge danger">Needs your answer</p>
+        </BlockerAnswerForm>
       ))}
 
       {card.actions.length > 0 && (
@@ -198,40 +198,6 @@ function Card({
         </div>
       )}
     </article>
-  );
-}
-
-function BlockerForm({
-  blocker,
-  busy,
-  post,
-}: {
-  blocker: { id: string; question: string; label: string };
-  busy: boolean;
-  post: (key: string, url: string, body?: unknown) => Promise<boolean>;
-}) {
-  const [answer, setAnswer] = useState("");
-  const [reuse, setReuse] = useState(true);
-  return (
-    <form
-      className="blocker"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (await post(`b-${blocker.id}`, `/api/blockers/${blocker.id}/answer`, { answer, reuse })) setAnswer("");
-      }}
-    >
-      <p className="badge danger">Needs your answer</p>
-      <label htmlFor={`b-${blocker.id}`}>{blocker.question}</label>
-      <input id={`b-${blocker.id}`} value={answer} onChange={(e) => setAnswer(e.target.value)} required />
-      <div className="blocker-row">
-        <label className="check">
-          <input type="checkbox" checked={reuse} onChange={(e) => setReuse(e.target.checked)} /> Reuse for future jobs
-        </label>
-        <button className="btn primary" disabled={busy || !answer.trim()}>
-          Save
-        </button>
-      </div>
-    </form>
   );
 }
 

@@ -22,6 +22,7 @@ export type Status = (typeof STATUSES)[number];
 
 /** Queue names. Each one is handled by a worker consumer. */
 export const JOBS = {
+  extractorExtract: "extractor.extract",
   scoutSearch: "scout.search",
   penCraft: "pen.craft",
   shipperPrefill: "shipper.prefill",
@@ -38,7 +39,7 @@ export type GuardName =
   | "noSubmissionEvidence"
   | "noOpenBlockers";
 
-export type Effect = "archiveJob" | "lockDocuments" | "recordSubmission" | "setError" | "clearError";
+export type Effect = "archiveJob" | "cancelRuns" | "lockDocuments" | "recordSubmission" | "setError" | "clearError";
 
 export interface Rule {
   from: readonly Status[];
@@ -55,11 +56,11 @@ export const RULES = {
   // ── Owner gates ────────────────────────────────────────────────────────
   shortlist: { from: ["found"], to: "shortlisted", actor: "owner", label: "Shortlist" },
   dismiss: {
-    from: ["found", "shortlisted", "crafted", "approved", "awaiting_submit"],
+    from: ["found", "shortlisted", "crafting", "crafted", "approved", "applying", "awaiting_submit"],
     to: "archived",
     actor: "owner",
     label: "Dismiss",
-    effects: ["archiveJob"],
+    effects: ["cancelRuns", "archiveJob"],
   },
   craft: {
     from: ["shortlisted"],
@@ -71,7 +72,7 @@ export const RULES = {
     effects: ["clearError"],
   },
   regenerate: {
-    from: ["crafted"],
+    from: ["crafted", "approved"],
     to: "crafting",
     actor: "owner",
     label: "Regenerate",
@@ -155,12 +156,6 @@ export function getRule(action: string): Rule | undefined {
   return Object.hasOwn(RULES, action) ? (RULES as Record<string, Rule>)[action] : undefined;
 }
 
-/** Is `action` legal from `status`, ignoring guards? */
-export function isLegal(status: Status, action: string): boolean {
-  const rule = getRule(action);
-  return !!rule && rule.from.includes(status);
-}
-
 /** Owner actions to render as buttons for a card. `resume` is driven by the Blockers UI. */
 export function ownerActions(status: Status): Action[] {
   return ACTIONS.filter((a) => {
@@ -168,9 +163,6 @@ export function ownerActions(status: Status): Action[] {
     return r.actor === "owner" && a !== "resume" && r.from.includes(status);
   });
 }
-
-/** Statuses where an agent is working; shown as a spinner, not a column. */
-export const TRANSIENT: readonly Status[] = ["crafting", "applying"];
 
 export const COLUMNS = [
   { id: "found", title: "Found" },
@@ -191,7 +183,7 @@ export type ColumnId = (typeof COLUMNS)[number]["id"];
 export function columnFor(status: Status, previous?: Status | null): ColumnId | null {
   switch (status) {
     case "crafting":
-      return previous === "crafted" ? "crafted" : "shortlisted";
+      return previous === "crafted" || previous === "approved" ? previous : "shortlisted";
     case "applying":
     case "awaiting_submit":
       return "approved";

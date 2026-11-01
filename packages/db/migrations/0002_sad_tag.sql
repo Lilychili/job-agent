@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "ai_provider" text DEFAULT 'api' NOT NULL;

@@ -6,8 +6,8 @@ const rootEnv = new URL("../../.env", import.meta.url);
 if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 
 const config: NextConfig = {
-  transpilePackages: ["@jobagent/core", "@jobagent/db", "@jobagent/queue"],
-  serverExternalPackages: ["pg", "pg-boss"],
+  transpilePackages: ["@jobagent/core", "@jobagent/db", "@jobagent/queue", "@jobagent/agents"],
+  serverExternalPackages: ["pg", "pg-boss", "unpdf", "mammoth"],
 };
 
 export default config;

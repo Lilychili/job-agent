@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.28.0",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "db:up": "docker compose up -d postgres",
     "db:generate": "pnpm --filter @jobagent/db generate",
@@ -12,7 +14,13 @@
     "dev": "pnpm --parallel --filter @jobagent/web --filter @jobagent/worker dev",
     "dev:web": "pnpm --filter @jobagent/web dev",
     "dev:worker": "pnpm --filter @jobagent/worker dev",
-    "test": "pnpm --filter @jobagent/core test",
-    "typecheck": "pnpm -r typecheck"
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "typescript-eslint": "^8.72.1"
   }
 }

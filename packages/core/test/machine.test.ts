@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { ACTIONS, columnFor, getRule, isLegal, ownerActions, RULES, STATUSES, type Status } from "../src/machine";
+import { ACTIONS, columnFor, getRule, ownerActions, RULES, STATUSES, type Status } from "../src/machine";
+
+const isLegal = (status: Status, action: string) => !!getRule(action)?.from.includes(status);
 
 // Written out by hand from docs/STATE_MACHINE.md, independently of RULES,
 // so a typo in the table shows up as a failing test rather than a silent change.
 const EXPECTED_LEGAL: Record<string, Status[]> = {
   shortlist: ["found"],
-  dismiss: ["found", "shortlisted", "crafted", "approved", "awaiting_submit"],
+  dismiss: ["found", "shortlisted", "crafting", "crafted", "approved", "applying", "awaiting_submit"],
   craft: ["shortlisted"],
-  regenerate: ["crafted"],
+  regenerate: ["crafted", "approved"],
   approve: ["crafted"],
   apply: ["approved"],
   resume: ["applying"],
@@ -49,11 +51,11 @@ describe("transition table", () => {
     }
   });
 
-  it("only system actions leave transient states, except resume", () => {
+  it("only system actions leave transient states, except resume and abandoning the card", () => {
     for (const a of ACTIONS) {
+      if (a === "resume" || a === "dismiss") continue;
       const r = RULES[a];
-      if (r.from.some((s: Status) => s === "crafting")) expect(r.actor).toBe("system");
-      if (r.from.some((s: Status) => s === "applying") && a !== "resume") expect(r.actor).toBe("system");
+      if (r.from.some((s: Status) => s === "crafting" || s === "applying")) expect(r.actor).toBe("system");
     }
   });
 
@@ -79,12 +81,13 @@ describe("board helpers", () => {
       }
     }
     expect(ownerActions("found")).toEqual(["shortlist", "dismiss"]);
-    expect(ownerActions("crafting")).toEqual([]);
+    expect(ownerActions("crafting")).toEqual(["dismiss"]);
   });
 
   it("puts transient states in their predecessor's column", () => {
     expect(columnFor("crafting", "shortlisted")).toBe("shortlisted");
     expect(columnFor("crafting", "crafted")).toBe("crafted");
+    expect(columnFor("crafting", "approved")).toBe("approved");
     expect(columnFor("applying")).toBe("approved");
     expect(columnFor("awaiting_submit")).toBe("approved");
     expect(columnFor("archived")).toBeNull();

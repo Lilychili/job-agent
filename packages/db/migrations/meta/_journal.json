@@ -15,6 +15,27 @@
       "when": 1793468355125,
       "tag": "0001_approved_documents_immutable",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793495417668,
+      "tag": "0002_sad_tag",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793496949925,
+      "tag": "0003_happy_sandman",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793496955523,
+      "tag": "0004_answer_keys_and_singletons",
+      "breakpoints": true
     }
   ]
 }

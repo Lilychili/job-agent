@@ -16,7 +16,7 @@ Three roles plus one utility. Each has a versioned prompt file at `agents/<role>
 Rule of thumb: **if a rule can be enforced in code, enforce it in code and also state it in the prompt.**
 
 ## Extractor (onboarding utility)
-- **API:** Messages API, structured output.
+- **API:** Messages API with a forced tool call, or the owner's Claude Code CLI with `--json-schema` (Settings picks which; see `packages/agents/src/cli.ts`). The output is a draft on the run; only the owner writes the Profile.
 - **Input:** CV text (PDF/DOCX → text in code).
 - **Output:** `Profile` (contact + facts with IDs).
 - **Tools:** none.

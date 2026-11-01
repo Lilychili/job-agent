@@ -20,11 +20,11 @@ Blocked is **not** a status — it is a flag (`open Blocker exists`) layered on 
 |---|---|---|---|---|
 | — | Search | Owner | Found (new cards) | `scout.search` |
 | Found | Shortlist | Owner | Shortlisted | — |
-| Found / any pre-Applied | Dismiss | Owner | Archived | — |
+| Found / any pre-Applied, including Crafting and Applying | Dismiss | Owner | Archived (closes any active run) | — |
 | Shortlisted | Craft | Owner | Crafting | `pen.craft` |
 | Crafting | run succeeds | System | Crafted | — |
 | Crafting | run fails | System | Shortlisted (+ error) | — |
-| Crafted | Regenerate | Owner | Crafting | `pen.craft` (new version) |
+| Crafted, Approved | Regenerate | Owner | Crafting | `pen.craft` (new version) |
 | Crafted | Approve | Owner | Approved | — (locks doc versions + hashes) |
 | Approved | Apply | Owner | Applying | `shipper.prefill` |
 | Applying | needs answer | System | Applying + Blocker | (run pauses) |

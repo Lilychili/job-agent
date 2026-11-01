@@ -42,15 +42,26 @@ export function normalizeTitle(title: string): string {
     .trim();
 }
 
-/** Normalized AnswerBank key for a form question. Synonym map grows in M4. */
+/**
+ * Normalized AnswerBank key for a form question. Synonym map grows in M4.
+ * A wrong match puts a false statement on an application, while a miss only raises a Blocker,
+ * so patterns stay narrow: questions that merely sound alike (right to work vs needs sponsorship,
+ * current vs expected salary) must never share a key. Sponsorship is checked first because
+ * "work authorization sponsorship" is a sponsorship question.
+ */
 const QUESTION_SYNONYMS: [RegExp, string][] = [
-  [/notice period|when can you start|earliest start|start date|availability to start/, "start_date"],
-  [/salary|compensation expectation|expected pay/, "salary_expectation"],
-  [/visa|work authori[sz]ation|right to work|sponsorship/, "work_authorization"],
+  [/sponsor/, "visa_sponsorship"],
+  [/work authori[sz]ation|authori[sz]ed to work|right to work/, "work_authorization"],
+  [/notice period|when can you start|earliest start|availability to start|^(desired |preferred |available )?start date$/, "start_date"],
+  [/(expect|desired|target|requested).*(salary|compensation|pay)|(salary|compensation|pay).*(expectation|requirement)/, "salary_expectation"],
   [/years of (professional )?experience/, "years_experience"],
   [/relocat/, "relocation"],
-  [/how did you hear|where did you (hear|find)/, "how_did_you_hear"],
+  [/how did you hear|where did you (hear|find)|^source$/, "how_did_you_hear"],
   [/why (do you want to work|are you interested|this company|us)/, "why_this_company"],
+  [/processing of my personal data|data processing|privacy policy/, "data_consent"],
+  [/pronouns/, "pronouns"],
+  [/linkedin/, "linkedin"],
+  [/portfolio|^(personal )?website( url)?$/, "website"],
 ];
 
 export function questionKey(question: string): string {
