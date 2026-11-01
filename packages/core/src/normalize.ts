@@ -14,15 +14,12 @@ export function canonicalUrl(raw: string): string {
   return `https://${host}${path}`;
 }
 
-const ATS_HOSTS = [
-  [/(^|.)greenhouse.io$/, "greenhouse"],
-  [/^jobs.lever.co$/, "lever"],
-  [/^jobs.ashbyhq.com$/, "ashby"],
-] as const;
-
-export function atsFromUrl(raw: string): (typeof ATS_HOSTS)[number][1] | null {
+export function atsFromUrl(raw: string): "greenhouse" | "lever" | "ashby" | null {
   const { hostname } = new URL(raw);
-  return ATS_HOSTS.find(([re]) => re.test(hostname))?.[1] ?? null;
+  if (hostname === "greenhouse.io" || hostname.endsWith(".greenhouse.io")) return "greenhouse";
+  if (hostname === "jobs.lever.co") return "lever";
+  if (hostname === "jobs.ashbyhq.com") return "ashby";
+  return null;
 }
 
 const TRACKING_PARAM = /^(utm_.*|gclid|fbclid|msclkid|trk|refid)$/i;
