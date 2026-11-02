@@ -17,6 +17,8 @@ import type { CoreContext, EnqueueRequest } from "../src/context";
 import type { Status } from "../src/machine";
 
 const TABLES = [
+  "rejected_posting",
+  "discovered_company",
   "application_event",
   "evidence",
   "blocker",

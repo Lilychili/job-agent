@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@jobagent/agents": "workspace:*",
+    "@jobagent/ats": "workspace:*",
     "@jobagent/core": "workspace:*",
     "@jobagent/db": "workspace:*",
     "@jobagent/queue": "workspace:*",

@@ -44,5 +44,8 @@ Each milestone ends with something usable. Estimates assume one developer, part-
 ### M6 — Reply tracking
 - Inbox connection (Gmail API or IMAP), match messages to applications by company/domain/subject, propose a status move (Replied / Interview / Rejected) for the owner to confirm.
 
+### Sources
+- Search without a company list: Claude finds companies by web search, code verifies their Greenhouse/Lever/Ashby boards, then aggregators and Gmail job alerts. See [SOURCES.md](SOURCES.md). The Gmail connection is shared with M6.
+
 ### Later
 - More ATS sources, weekly digest, interview prep notes from the posting, analytics (response rate by template version).

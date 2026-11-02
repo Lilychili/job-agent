@@ -1,0 +1,1 @@
+ALTER TABLE "rejected_posting" ADD COLUMN "criteria_key" text DEFAULT '' NOT NULL;

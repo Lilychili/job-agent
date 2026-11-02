@@ -14,6 +14,8 @@ export interface BoardCard {
   remote: string;
   salary: string;
   sourceUrl: string;
+  companyUrl: string | null;
+  alertSite: "Indeed" | "LinkedIn" | null;
   matchScore: number | null;
   matchReasons: { met: string[]; missed: string[] } | null;
   lastError: string | null;
@@ -27,7 +29,15 @@ export interface BoardCard {
 export interface BoardData {
   cards: BoardCard[];
   searchRunning: boolean;
+  lastSearch: { ok: boolean; message: string } | null;
   workerLastSeenAt: string | null;
+}
+
+function describeSearch(run: { status: string; error: string | null; output: Record<string, unknown> | null }): BoardData["lastSearch"] {
+  if (run.status === "failed") return { ok: false, message: `Search failed: ${run.error ?? "unknown error"}` };
+  if (run.status !== "succeeded" || typeof run.output?.inserted !== "number") return null;
+  const added = run.output.inserted;
+  return { ok: true, message: `Last search added ${added} ${added === 1 ? "job" : "jobs"}.` };
 }
 
 export async function loadBoard(): Promise<BoardData> {
@@ -40,7 +50,7 @@ export async function loadBoard(): Promise<BoardData> {
     .orderBy(desc(job.matchScore), desc(application.updatedAt));
 
   const ids = rows.map((r) => r.app.id);
-  const [runs, openBlockers, intoCrafting, search, [cfg]] = await Promise.all([
+  const [runs, openBlockers, intoCrafting, [latestSearch], [cfg]] = await Promise.all([
     ids.length
       ? db
           .select()
@@ -58,9 +68,10 @@ export async function loadBoard(): Promise<BoardData> {
           .orderBy(desc(applicationEvent.at))
       : [],
     db
-      .select({ id: agentRun.id })
+      .select({ status: agentRun.status, error: agentRun.error, output: agentRun.output })
       .from(agentRun)
-      .where(and(eq(agentRun.role, "scout"), inArray(agentRun.status, ["queued", "running"])))
+      .where(eq(agentRun.role, "scout"))
+      .orderBy(desc(agentRun.createdAt))
       .limit(1),
     db.select({ workerLastSeenAt: settings.workerLastSeenAt }).from(settings).limit(1),
   ]);
@@ -83,6 +94,8 @@ export async function loadBoard(): Promise<BoardData> {
       remote: j.remote,
       salary: j.salary,
       sourceUrl: j.sourceUrl,
+      companyUrl: j.companyUrl,
+      alertSite: j.source === "indeed_alert" ? "Indeed" : j.source === "linkedin_alert" ? "LinkedIn" : null,
       matchScore: j.matchScore,
       matchReasons: j.matchReasons ? { met: j.matchReasons.met, missed: j.matchReasons.missed } : null,
       lastError: app.lastError,
@@ -98,7 +111,8 @@ export async function loadBoard(): Promise<BoardData> {
 
   return {
     cards,
-    searchRunning: search.length > 0,
+    searchRunning: latestSearch?.status === "queued" || latestSearch?.status === "running",
+    lastSearch: latestSearch ? describeSearch(latestSearch) : null,
     workerLastSeenAt: cfg?.workerLastSeenAt?.toISOString() ?? null,
   };
 }

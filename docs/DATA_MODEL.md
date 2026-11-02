@@ -17,12 +17,33 @@ Fact IDs are stable so Pen can cite them.
 ## Preferences
 | Field | Type |
 |---|---|
+| roles | text[]: the job titles wanted. Discover searches for them, Search ranks by them, Scout scores against them |
 | locations | text[] |
 | remote | enum: onsite / hybrid / remote / any |
 | salaryFloor | int + currency |
 | stack | text[] (must-have / nice-to-have) |
 | exclusions | jsonb: companies, keywords, seniority |
-| companyBoards | jsonb: list of `{ ats: greenhouse\|lever\|ashby, boardToken }` to search |
+| companyBoards | jsonb: optional list of `{ ats: greenhouse\|lever\|ashby, boardToken }` to always search, on top of what Discover finds |
+
+## DiscoveredCompany
+Companies Claude found by searching the web (docs/SOURCES.md).
+
+| Field | Type | Notes |
+|---|---|---|
+| name, nameNorm | text | nameNorm is unique, so a company is stored once |
+| ats, boardToken | enum, text | Null when no Greenhouse, Lever or Ashby board answered; those are not searched |
+| reason | text | Claude's one-line reason |
+| checkedAt | timestamp | When the board was last looked for |
+| removed | bool | The owner dismissed it: not read, not suggested again |
+
+## RejectedPosting
+Postings Scout dropped. Only the link and score are kept, so Search doesn't pay to score them again for 30 days, or until Preferences change. They never reach the board.
+
+| Field | Type |
+|---|---|
+| canonicalUrl | text unique |
+| matchScore | int |
+| criteriaKey | text: hash of the Preferences it was scored against |
 
 ## AnswerBank
 | Field | Type | Notes |

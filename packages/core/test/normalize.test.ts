@@ -44,6 +44,14 @@ describe("atsFromUrl", () => {
 });
 
 describe("canonicalManualUrl", () => {
+  it("knows an Indeed job by its jk, whatever else the link carries", () => {
+    const key = "https://indeed.com/viewjob?jk=49d3";
+    expect(canonicalManualUrl("https://es.indeed.com/rc/clk/dl?alid=1&bb=a&from=ja&jk=49d3&tk=x")).toBe(key);
+    expect(canonicalManualUrl("https://www.indeed.co.uk/viewjob?jk=49d3&from=web")).toBe(key);
+    expect(canonicalManualUrl("https://cts.indeed.com/a?x=1")).toBe("https://cts.indeed.com/a?x=1");
+    expect(canonicalManualUrl("https://indeed.evil.example/view?jk=49d3")).toBe("https://indeed.evil.example/view?jk=49d3");
+  });
+
   it("keeps a query that identifies the job", () => {
     expect(canonicalManualUrl("https://board.example/view?jk=1")).not.toBe(canonicalManualUrl("https://board.example/view?jk=2"));
   });

@@ -37,6 +37,10 @@ interface CliRequest {
   /** JSON Schema: the CLI validates its answer against this and returns it as `structured`. */
   schema?: object;
   model?: string;
+  /** Claude Code tools to allow, e.g. ["WebSearch"]. None by default: a pure text-in, structure-out call. */
+  tools?: string[];
+  /** Caps the turns of a run with tools, so a search can't go on until the job times out. */
+  maxTurns?: number;
   signal?: AbortSignal;
 }
 
@@ -69,12 +73,14 @@ export function cliArgs(req: CliRequest): string[] {
     "json",
     "--no-session-persistence",
     "--tools",
-    "", // no tools: this is a pure text-in, structure-out call
+    (req.tools ?? []).join(","), // none unless a step asks, e.g. web search for Discover
     "--disable-slash-commands",
     "--strict-mcp-config", // don't attach the owner's connectors (Gmail, Drive…) to a run fed untrusted text
     "--setting-sources",
     "", // nor their hooks or apiKeyHelper, which could run code or bill the API
   ];
+  if (req.tools?.length) args.push("--allowedTools", req.tools.join(","));
+  if (req.maxTurns) args.push("--max-turns", String(req.maxTurns));
   if (req.system) args.push("--system-prompt", req.system);
   if (req.schema) args.push("--json-schema", JSON.stringify(req.schema));
   if (req.model) args.push("--model", req.model);

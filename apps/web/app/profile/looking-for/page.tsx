@@ -1,13 +1,15 @@
 import { PageShell } from "@/components/PageShell";
-import { loadPreferences } from "@/lib/data";
+import { loadDiscoveredCompanies, loadPreferences } from "@/lib/data";
 import { ProfileTabs } from "../ProfileTabs";
+import { DiscoveredCompanies } from "./DiscoveredCompanies";
 import { PreferencesForm, type PrefsValue } from "./PreferencesForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function LookingForPage() {
-  const p = await loadPreferences();
+  const [p, discovered] = await Promise.all([loadPreferences(), loadDiscoveredCompanies()]);
   const initial: PrefsValue = {
+    roles: p?.roles ?? [],
     locations: p?.locations ?? [],
     remote: p?.remote ?? "any",
     salaryFloor: p?.salaryFloor?.toString() ?? "",
@@ -23,7 +25,8 @@ export default async function LookingForPage() {
       tabs={<ProfileTabs active="looking-for" />}
       lead="Hard criteria for Search. Jobs that break these are filtered out in code before any AI sees them."
     >
-      <PreferencesForm initial={initial} />
+      <PreferencesForm key={initial.exclusions.companies.join("\n")} initial={initial} />
+      <DiscoveredCompanies companies={discovered} />
     </PageShell>
   );
 }

@@ -118,6 +118,7 @@ export function parsePreferences(input: unknown): Omit<typeof preferences.$infer
     });
 
   return {
+    roles: list(b.roles),
     locations: list(b.locations),
     remote,
     salaryFloor,

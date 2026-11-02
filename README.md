@@ -2,7 +2,7 @@
 
 A single-user app that finds jobs, writes CVs and cover letters from verified facts, and prefills application forms, with your approval between every step. The plan lives in [docs/](docs/PLAN.md).
 
-**Status: M0 (Foundations) done; M1 (Onboarding) built, needs a real-CV check.** The board, state machine, queue, worker and live updates are real, and so is onboarding: encrypted API key, Profile editor with CV extraction, Preferences, AnswerBank and the Blockers inbox. The Scout, Pen and Shipper are still **stubs** that behave like the real ones at their boundaries (dedupe, versioned + hashed documents, Blockers, evidence). They will be replaced in M2 (Scout), M3 (Pen) and M4 (Shipper).
+**Status: M0 (Foundations) done; M1 (Onboarding) built, needs a real-CV check; M2 (Search) built, needs a first real search.** The board, state machine, queue, worker and live updates are real, and so is onboarding: encrypted API key, Profile editor with CV extraction, Preferences, AnswerBank and the Blockers inbox. Search is real too: Claude searches the web for companies that fit your Preferences, code looks for their Greenhouse, Lever or Ashby boards, and Scout scores the open jobs. You don't have to list companies. Pen and Shipper are still **stubs** that behave like the real ones at their boundaries (versioned + hashed documents, Blockers, evidence). They will be replaced in M3 (Pen) and M4 (Shipper).
 
 Agents reach Claude through your signed-in Claude Code CLI (your subscription) or an Anthropic API key (pay per use); choose in Settings.
 
@@ -51,11 +51,12 @@ The DB tests use `TEST_DATABASE_URL` and truncate it on every test.
 
 ```
 apps/web          Next.js board, API routes, SSE endpoint (/api/events)
-apps/worker       pg-boss consumers; src/jobs/{scout,pen,shipper}.ts are M0 stubs
+apps/worker       pg-boss consumers; src/jobs/{pen,shipper}.ts are M0 stubs
 packages/db       Drizzle schema for every table, migrations, NOTIFY helper
 packages/core     State machine: transition table, transition(), guards, runs, blockers
 packages/queue    pg-boss setup shared by web and worker
-packages/agents   Claude client, prompt loading, CV text extraction + Extractor
+packages/ats      Greenhouse, Lever and Ashby clients (plain HTTP, no LLM)
+packages/agents   Claude client, prompt loading, Extractor and Scout scoring
 agents/           Versioned prompt files per role (used from M2)
 docs/             The MVP plan
 ```
@@ -84,6 +85,6 @@ docs/             The MVP plan
 - Settings has "Export all data" and "Delete all data".
 - **Add job** on the board puts a job you found yourself in Found. It needs a link, is deduped like Scout's finds, and a dismissed job can't be added back.
 
-## Next: M2
+## Next: M3
 
-ATS clients (Greenhouse, Lever, Ashby), the deterministic filter, and the real Scout.
+The real Pen: HTML templates, cited facts, PDF rendering and the review screen.

@@ -1,5 +1,5 @@
 import { decryptSecret, encryptionKeyFromEnv } from "@jobagent/core";
-import type { Auth } from "./extractor";
+import type { Auth } from "./ask";
 
 /** Turn the settings row into credentials for a call. Throws a plain-English error if it isn't set up. */
 export function authFromSettings(s: { aiProvider?: string | null; encryptedApiKey?: string | null } | undefined): Auth {

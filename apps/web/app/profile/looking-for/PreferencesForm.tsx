@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 type Board = { ats: "greenhouse" | "lever" | "ashby"; boardToken: string };
 
 export interface PrefsValue {
+  roles: string[];
   locations: string[];
   remote: "onsite" | "hybrid" | "remote" | "any";
   salaryFloor: string;
@@ -39,6 +40,17 @@ export function PreferencesForm({ initial }: { initial: PrefsValue }) {
 
   return (
     <form onSubmit={save}>
+      <section className="panel">
+        <h2>Role</h2>
+        <TagInput
+          label="Job titles you want"
+          value={v.roles}
+          onChange={(x) => set("roles", x)}
+          placeholder="Senior Frontend Engineer, Staff Engineer…"
+          hint="Press Enter after each one. Search looks for these titles first, and a job far from them scores low."
+        />
+      </section>
+
       <section className="panel">
         <h2>Where and how</h2>
         <TagInput
@@ -105,10 +117,11 @@ export function PreferencesForm({ initial }: { initial: PrefsValue }) {
       </section>
 
       <section className="panel">
-        <h2>Companies to search</h2>
+        <h2>Always search these (optional)</h2>
         <p className="hint">
-          Search reads the public job boards of these companies. The board name is the last part of the URL, e.g.
-          boards.greenhouse.io/<strong>acme</strong>.
+          Search finds companies on its own: Claude looks them up on the web and checks their job boards. Add a company here only
+          if you want it searched every time. The board name is the last part of its URL, e.g. boards.greenhouse.io/
+          <strong>acme</strong>.
         </p>
         {v.companyBoards.map((b, i) => (
           <div className="row" key={i}>

@@ -3,15 +3,12 @@
 // nothing uses it until the owner confirms.
 import { parseFacts, ValidationError } from "@jobagent/core";
 import type { Contact, ProfileFact } from "@jobagent/db";
-import { createMessage, type ContentBlock, type Usage } from "./claude";
-import { runClaudeCli } from "./cli";
+import { addUsage, askClaude, NO_USAGE, type Auth } from "./ask";
+import type { Usage } from "./claude";
 import { loadPrompt } from "./prompts";
 import { wrapUntrusted } from "./untrusted";
 
 const MAX_CV_CHARS = 60_000;
-
-/** How to reach Claude: a pay-per-use API key, or the owner's signed-in Claude Code CLI. */
-export type Auth = { kind: "api"; apiKey: string } | { kind: "cli" };
 
 /** Read the text of a PDF or DOCX. The format is decided by the file's bytes, not its name. */
 export async function extractCvText(buf: Buffer): Promise<string> {
@@ -91,38 +88,6 @@ interface ExtractionResult {
   promptVersion: string;
 }
 
-const add = (a: Usage, b: Usage): Usage => ({
-  inputTokens: a.inputTokens + b.inputTokens,
-  outputTokens: a.outputTokens + b.outputTokens,
-  cacheReadTokens: a.cacheReadTokens + b.cacheReadTokens,
-  cacheWriteTokens: a.cacheWriteTokens + b.cacheWriteTokens,
-});
-
-/** One round trip to Claude through whichever provider is configured; returns the structured answer. */
-async function ask(
-  auth: Auth,
-  model: string,
-  system: string,
-  prompt: string,
-  signal?: AbortSignal,
-): Promise<{ output: unknown; usage: Usage; listCostUsd: number }> {
-  if (auth.kind === "cli") {
-    const res = await runClaudeCli({ system, prompt, schema: SCHEMA, model, signal });
-    return { output: res.structured, usage: res.usage, listCostUsd: res.listCostUsd };
-  }
-  const res = await createMessage({
-    apiKey: auth.apiKey,
-    model,
-    system,
-    prompt,
-    maxTokens: 8000,
-    tool: { name: "submit_profile", description: "Submit the structured Profile extracted from the CV.", input_schema: SCHEMA },
-    signal,
-  });
-  const call = res.content.find((b): b is Extract<ContentBlock, { type: "tool_use" }> => b.type === "tool_use");
-  return { output: call?.input ?? null, usage: res.usage, listCostUsd: 0 };
-}
-
 export async function extractProfile(opts: {
   auth: Auth;
   model: string;
@@ -133,13 +98,22 @@ export async function extractProfile(opts: {
   const { system, version } = loadPrompt("extractor");
   const base = `${wrapUntrusted("cv", opts.cvText)}\n\nExtract the Profile from this CV.`;
   let prompt = base;
-  let usage: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  let usage = NO_USAGE;
   let listCostUsd = 0;
 
   // One repair retry on invalid output, then fail (docs/ARCHITECTURE.md).
   for (let attempt = 0; ; attempt++) {
-    const res = await ask(opts.auth, opts.model, system, prompt, opts.signal);
-    usage = add(usage, res.usage);
+    const res = await askClaude({
+      auth: opts.auth,
+      model: opts.model,
+      system,
+      prompt,
+      schema: SCHEMA,
+      tool: { name: "submit_profile", description: "Submit the structured Profile extracted from the CV." },
+      maxTokens: 8000,
+      signal: opts.signal,
+    });
+    usage = addUsage(usage, res.usage);
     listCostUsd += res.listCostUsd;
     try {
       const out = res.output as { contact?: unknown; facts?: unknown } | null;
