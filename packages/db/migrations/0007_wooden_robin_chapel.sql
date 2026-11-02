@@ -1,0 +1,1 @@
+ALTER TABLE "preferences" ADD COLUMN "roles" text[] DEFAULT '{}'::text[] NOT NULL;

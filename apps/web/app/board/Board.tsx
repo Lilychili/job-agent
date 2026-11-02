@@ -84,6 +84,7 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
         <div className="status">
           <StatusDot ok={conn === "live"} label={conn === "live" ? "Live" : conn === "connecting" ? "Connecting" : "Reconnecting"} />
           <StatusDot ok={!!workerAlive} label={workerAlive ? "Worker running" : "Worker offline"} />
+          {!data.searchRunning && data.lastSearch && <span className={data.lastSearch.ok ? "hint" : "error"}>{data.lastSearch.message}</span>}
         </div>
         <div className="actions">
           <AddJobDialog onAdded={refetch} />
@@ -162,6 +163,20 @@ function Card({
         {[card.location, card.remote !== "unknown" ? card.remote : null].filter(Boolean).join(" · ")}
         <br />
         <span className={card.salary === "not stated" ? "muted" : ""}>Salary: {card.salary}</span>
+        {card.alertSite && (
+          <>
+            <br />
+            <span className="muted">From {card.alertSite === "Indeed" ? "an" : "a"} {card.alertSite} alert</span>
+          </>
+        )}
+        {card.companyUrl && (
+          <>
+            <br />
+            <a href={card.companyUrl} target="_blank" rel="noreferrer noopener">
+              Company jobs page
+            </a>
+          </>
+        )}
       </p>
 
       {card.matchReasons && (

@@ -29,6 +29,14 @@ describe("cliArgs", () => {
     expect(args[args.indexOf("--model") + 1]).toBe("haiku");
   });
 
+  it("allows only the tools a step asks for", () => {
+    const args = cliArgs({ prompt: "x", tools: ["WebSearch"] });
+    expect(args[args.indexOf("--tools") + 1]).toBe("WebSearch");
+    expect(args[args.indexOf("--allowedTools") + 1]).toBe("WebSearch");
+    expect(cliArgs({ prompt: "x" })).not.toContain("--allowedTools");
+    expect(cliArgs({ prompt: "x", maxTurns: 12 }).join(" ")).toContain("--max-turns 12");
+  });
+
   it("never puts the user's prompt (the CV) on the command line", () => {
     expect(cliArgs({ prompt: "PRIVATE CV TEXT" }).join(" ")).not.toContain("PRIVATE");
   });

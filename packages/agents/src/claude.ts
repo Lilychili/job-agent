@@ -22,6 +22,12 @@ interface MessagesRequest {
   maxTokens: number;
   /** When set, Claude must answer by calling this tool. */
   tool?: { name: string; description: string; input_schema: object };
+  /** Anthropic's web search, run on their side. Claude then picks between searching and `tool`. */
+  webSearch?: { maxUses: number };
+  /** A conversation to continue. Replaces `prompt`. */
+  messages?: { role: "user" | "assistant"; content: unknown }[];
+  /** Force `tool` (the default when it is set) or leave it to Claude. */
+  toolChoice?: "force" | "auto";
   signal?: AbortSignal;
 }
 
@@ -32,7 +38,9 @@ export class ClaudeError extends Error {
   }
 }
 
-export async function createMessage(req: MessagesRequest): Promise<{ content: ContentBlock[]; usage: Usage }> {
+export async function createMessage(
+  req: MessagesRequest,
+): Promise<{ content: ContentBlock[]; raw: unknown[]; stopReason: string | null; usage: Usage }> {
   let res: Response;
   try {
     res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -43,9 +51,12 @@ export async function createMessage(req: MessagesRequest): Promise<{ content: Co
         model: req.model,
         max_tokens: req.maxTokens,
         system: req.system,
-        messages: [{ role: "user", content: req.prompt }],
-        tools: req.tool && [req.tool],
-        tool_choice: req.tool && { type: "tool", name: req.tool.name },
+        messages: req.messages ?? [{ role: "user", content: req.prompt }],
+        tools: (req.tool || req.webSearch) && [
+          ...(req.webSearch ? [{ type: "web_search_20250305", name: "web_search", max_uses: req.webSearch.maxUses }] : []),
+          ...(req.tool ? [req.tool] : []),
+        ],
+        tool_choice: req.tool && (req.toolChoice === "auto" ? { type: "auto" } : { type: "tool", name: req.tool.name }),
       }),
     });
   } catch (err) {
@@ -54,6 +65,7 @@ export async function createMessage(req: MessagesRequest): Promise<{ content: Co
   }
   const body = (await res.json().catch(() => null)) as {
     content?: ContentBlock[];
+    stop_reason?: string;
     usage?: Record<string, number>;
     error?: { message?: string };
   } | null;
@@ -65,7 +77,7 @@ export async function createMessage(req: MessagesRequest): Promise<{ content: Co
     if (res.status === 429) throw new ClaudeError("Rate limited by Anthropic (429). Try again in a minute.");
     throw new ClaudeError(`Anthropic API error ${res.status}: ${detail}`);
   }
-  return { content: body?.content ?? [], usage: usageFrom(body?.usage) };
+  return { content: body?.content ?? [], raw: body?.content ?? [], stopReason: body?.stop_reason ?? null, usage: usageFrom(body?.usage) };
 }
 
 /** Both the API and Claude Code report usage with these field names. */

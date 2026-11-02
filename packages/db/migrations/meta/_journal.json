@@ -43,6 +43,48 @@
       "when": 1793522377660,
       "tag": "0005_boring_network",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793621463681,
+      "tag": "0006_fearless_doctor_faustus",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793625606307,
+      "tag": "0007_wooden_robin_chapel",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793627333302,
+      "tag": "0008_tiny_thunderbolt",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793632990584,
+      "tag": "0009_fresh_vargas",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793634382344,
+      "tag": "0010_long_tony_stark",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793663404330,
+      "tag": "0011_indeed_job_keys",
+      "breakpoints": true
     }
   ]
 }

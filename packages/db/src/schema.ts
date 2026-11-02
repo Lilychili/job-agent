@@ -114,6 +114,8 @@ export const profile = pgTable("profile", {
 
 export const preferences = pgTable("preferences", {
   ...base,
+  // The job titles the owner wants, e.g. "Senior Frontend Engineer". Search looks for these first.
+  roles: text().array().notNull().default(sql`'{}'::text[]`),
   locations: text().array().notNull().default(sql`'{}'::text[]`),
   remote: remotePreference().notNull().default("any"),
   salaryFloor: integer(),
@@ -128,6 +130,38 @@ export const preferences = pgTable("preferences", {
     .$type<{ ats: "greenhouse" | "lever" | "ashby"; boardToken: string }[]>()
     .notNull()
     .default([]),
+});
+
+/**
+ * Companies Claude found by searching the web. Search only reads the ones with a verified board.
+ * `ats` and `boardToken` stay null when no Greenhouse, Lever or Ashby board has it; `checkedAt` then
+ * decides when to look again. `removed` keeps a company the owner dismissed from coming back.
+ */
+export const discoveredCompany = pgTable(
+  "discovered_company",
+  {
+    ...base,
+    name: text().notNull(),
+    nameNorm: text().notNull(),
+    ats: ats(),
+    boardToken: text(),
+    reason: text().notNull().default(""),
+    checkedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    removed: boolean().notNull().default(false),
+  },
+  (t) => [uniqueIndex("discovered_company_name_uq").on(t.nameNorm)],
+);
+
+/**
+ * Postings Scout scored below the cut-off. Only their link is kept, so a later search doesn't pay to
+ * score them again. They never reach the board.
+ */
+export const rejectedPosting = pgTable("rejected_posting", {
+  ...base,
+  canonicalUrl: text().notNull().unique(),
+  matchScore: integer().notNull(),
+  // A hash of the Preferences it was scored against: new Preferences mean a new look.
+  criteriaKey: text().notNull().default(""),
 });
 
 export const answerBank = pgTable("answer_bank", {
@@ -154,6 +188,8 @@ export const job = pgTable(
     location: text(),
     remote: jobRemote().notNull().default("unknown"),
     salary: text().notNull().default("not stated"),
+    source: text(), // set when an alert brought the job in, e.g. "indeed_alert"
+    companyUrl: text(), // the company's job board, when sourceUrl can't point at the company
     rawPosting: text().notNull().default(""),
     matchScore: integer(),
     matchReasons: jsonb().$type<MatchReasons>(),
@@ -297,6 +333,8 @@ export const settings = pgTable("settings", {
   aiProvider: text().notNull().default("api"),
   encryptedApiKey: text(),
   apiKeyLast4: text(),
+  // A Google refresh token for reading job alerts. Never leaves the server.
+  encryptedGmailToken: text(),
   defaultModel: text(),
   workerLastSeenAt: timestamp({ withTimezone: true }),
 });

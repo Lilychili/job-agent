@@ -10,7 +10,7 @@
 | Worker | Separate Node process | Agent runs take minutes; never inside a request |
 | Live updates | Server-Sent Events | One-way server → board; simpler than WebSockets |
 | Browser automation / PDF | Playwright | Render PDFs and fill forms (already installed) |
-| LLM | Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) for Scout and Shipper; Messages API with tool use + structured output for Pen and CV extraction | Agent loop where tools are needed; plain calls where they aren't |
+| LLM | Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) for Shipper; structured output with no tools for Scout, Pen and CV extraction | Agent loop where tools are needed; plain calls where they aren't |
 
 > **Note on SQLite:** the brief allows SQLite for single-user. pg-boss needs Postgres, so if you choose SQLite you'd need a different queue. Recommendation: use Postgres from day one (a local Docker container is enough) and keep one queue story.
 

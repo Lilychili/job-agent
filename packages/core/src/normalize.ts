@@ -1,5 +1,4 @@
 // Dedupe keys from the TeamHero rule: canonical URL + normalized company and title.
-// Moves to packages/ats in M2; lives here so the stub Scout can dedupe in M0.
 
 /**
  * https, lowercase host, no query, no fragment, no trailing slash.
@@ -27,11 +26,17 @@ const GREENHOUSE_JOB_PARAM = /^(token|gh_jid)$/;
 
 const TRACKING_PARAM = /^(utm_.*|gclid|fbclid|msclkid|trk|refid)$/i;
 
+const INDEED_HOST = /(^|\.)indeed\.(com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$/i;
+
 /**
  * canonicalUrl for a link pasted by the owner. Outside the known ATSs the query can be
  * the only thing that identifies the job (?jk=…), so it stays, minus tracking.
+ * Indeed changes the rest of its query in every email and has a site per country, so only jk counts.
  */
 export function canonicalManualUrl(raw: string): string {
+  const url = new URL(raw.trim());
+  const indeedJob = INDEED_HOST.test(url.hostname) && url.searchParams.get("jk");
+  if (indeedJob) return `https://indeed.com/viewjob?jk=${encodeURIComponent(indeedJob)}`;
   const base = canonicalUrl(raw);
   const ats = atsFromUrl(raw);
   if (ats === "lever" || ats === "ashby") return base;

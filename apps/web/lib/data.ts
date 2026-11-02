@@ -1,7 +1,7 @@
 import "server-only";
-import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { answerRule, DEFAULT_HINTS, maskKey, type AnswerRule } from "@jobagent/core";
-import { agentRun, answerBank, application, blocker, job, preferences, profile, settings, type Contact, type ProfileFact } from "@jobagent/db";
+import { agentRun, answerBank, application, blocker, discoveredCompany, job, preferences, profile, settings, type Contact, type ProfileFact } from "@jobagent/db";
 import { getDb } from "./server";
 
 export async function loadProfile() {
@@ -14,6 +14,15 @@ export async function loadPreferences() {
   return p ?? null;
 }
 
+/** Companies Claude found by searching the web, the ones with a readable board first. */
+export async function loadDiscoveredCompanies() {
+  return getDb()
+    .select({ id: discoveredCompany.id, name: discoveredCompany.name, reason: discoveredCompany.reason, hasBoard: sql<boolean>`${discoveredCompany.boardToken} is not null` })
+    .from(discoveredCompany)
+    .where(eq(discoveredCompany.removed, false))
+    .orderBy(sql`${discoveredCompany.boardToken} is null`, asc(discoveredCompany.name));
+}
+
 /** Everything the UI may know about Settings. The encrypted key and the key itself never leave the server. */
 export async function loadSettingsView() {
   const [s] = await getDb().select().from(settings).limit(1);
@@ -24,6 +33,7 @@ export async function loadSettingsView() {
     hasKey,
     maskedKey: maskKey(s?.apiKeyLast4),
     defaultModel: s?.defaultModel ?? "",
+    gmailConnected: !!s?.encryptedGmailToken,
     /** Can an agent call Claude right now? */
     ready: provider === "cli" || hasKey,
   };
@@ -127,7 +137,7 @@ export async function loadSetupStatus(): Promise<SetupStatus> {
     key: settingsView.ready,
     profile: !p ? "none" : p.confirmed ? "confirmed" : "draft",
     factCount: p?.facts.length ?? 0,
-    preferences: !!prefs && (prefs.locations.length > 0 || prefs.stackMustHave.length > 0 || prefs.companyBoards.length > 0),
+    preferences: !!prefs && (prefs.roles.length > 0 || prefs.locations.length > 0 || prefs.stackMustHave.length > 0 || prefs.companyBoards.length > 0),
     answered: answers.filter((a) => a.answer.trim() !== "").length,
     answerTotal: answers.length,
   };

@@ -1,6 +1,7 @@
 import { appendLog, claimRun, failRun, finishRun, type CoreContext, type Run } from "@jobagent/core";
 import { QUEUES } from "@jobagent/queue";
 import type { JobName } from "@jobagent/core";
+import { errorText } from "./util";
 
 export interface JobData {
   runId: string;
@@ -54,7 +55,7 @@ export function runner(
         }
         console.log(`[${name}] run ${run.id} ${outcome.kind}`);
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = errorText(err);
         console.error(`[${name}] run ${run.id} failed:`, message);
         await appendLog(ctx, run.id, message, "error").catch(() => {});
         await failRun(ctx, run, message);

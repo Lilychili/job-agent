@@ -5,7 +5,10 @@ export * from "./secrets";
 export * from "./profile";
 export * from "./answers";
 export * from "./data";
-export { addJob, parseJob } from "./jobs";
+export { addFoundJobs, addJob, addRejectedPostings, MIN_MATCH_SCORE, parseJob, unknownPostings, type FoundJob } from "./jobs";
+export * from "./filter";
+export * from "./discovered";
+export * from "./gmail";
 export { sha256, sha256File } from "./guards";
 export { transition, transitionInTx, isUniqueViolation, type TransitionOptions, type TransitionResult } from "./transition";
 export {

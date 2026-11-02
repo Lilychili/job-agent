@@ -13,6 +13,7 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@jobagent/ats": "workspace:*",
     "@jobagent/core": "workspace:*",
     "@jobagent/db": "workspace:*",
     "mammoth": "^1.13.0",
