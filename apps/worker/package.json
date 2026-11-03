@@ -14,8 +14,7 @@
     "@jobagent/core": "workspace:*",
     "@jobagent/db": "workspace:*",
     "@jobagent/queue": "workspace:*",
-    "drizzle-orm": "^0.45.4",
-    "pg": "^8.23.1"
+    "drizzle-orm": "^0.45.4"
   },
   "devDependencies": {
     "@types/node": "^22",

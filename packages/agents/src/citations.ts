@@ -17,7 +17,7 @@ export function unsupportedNumber(text: string, sources: string[]): string | und
   return text.match(NUMBER)?.find((n) => !stated.has(n));
 }
 
-export const normName = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+const normName = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
 export const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Any of `names` as a whole word or phrase, so "Go" doesn't match "Google". Null for no names. */

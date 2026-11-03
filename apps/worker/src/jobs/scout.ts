@@ -23,6 +23,7 @@ const NEW_COMPANIES_PER_SEARCH = 15;
 // Discover gets part of the five minutes, so a slow web search can't cost the whole search.
 const DISCOVER_TIMEOUT_MS = 120_000;
 const MAX_RECHECKS_PER_SEARCH = 10;
+const PARALLEL_BOARD_READS = 8;
 
 type Criteria = HardCriteria & ScoutPreferences & { companyBoards: Board[] };
 
@@ -104,13 +105,22 @@ async function discoverBoards(
   return { boards, usage, listCostUsd, promptVersion };
 }
 
-async function readBoards(boards: Board[], read: BoardReader, log: RunHelpers["log"]): Promise<Posting[]> {
+async function readBoards(boards: Board[], read: BoardReader, log: RunHelpers["log"], signal: AbortSignal): Promise<Posting[]> {
   if (boards.length === 0) return [];
-  const results = await Promise.allSettled(boards.map((b) => read(b)));
-  const failures = results.flatMap((r, i) => (r.status === "rejected" ? [`${boards[i]!.boardToken}: ${errorText(r.reason)}`] : []));
+  // A search starts from every board found so far, so the list only grows: read a few at a time.
+  const postings: Posting[] = [];
+  const failures: string[] = [];
+  await forEachParallel(boards, PARALLEL_BOARD_READS, async (board) => {
+    try {
+      postings.push(...(await read(board)));
+    } catch (err) {
+      if (signal.aborted) throw err;
+      failures.push(`${board.boardToken}: ${errorText(err)}`);
+    }
+  });
   for (const failure of failures) await log(`Skipped ${failure}`);
   if (failures.length === boards.length) throw new Error(`Couldn't read any job board. ${failures.join("; ")}`);
-  return results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+  return postings;
 }
 
 /** Most promising first, so the cap on a big board keeps the jobs with the owner's titles and stack. */
@@ -162,7 +172,7 @@ export async function scoutSearch({ run, ctx, log, signal }: RunHelpers): Promis
   const boards = [...new Map([...criteria.companyBoards, ...discovered.boards].map((b) => [boardKey(b), b])).values()];
 
   await log(`Reading ${boards.length} job boards…`);
-  const fromBoards = await readBoards(boards, read, log);
+  const fromBoards = await readBoards(boards, read, log, signal);
   // A rejection only holds for the Preferences it was judged against.
   const criteriaKey = sha256(JSON.stringify(preferences));
   const alerts = await readJobAlerts({ auth, model }, { criteria, criteriaKey, read }, { ctx, log, signal });

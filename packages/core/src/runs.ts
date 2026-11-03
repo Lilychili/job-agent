@@ -13,7 +13,7 @@ import {
 import { answerRule, checkAnswer } from "./answers";
 import { TransitionError, type CoreContext } from "./context";
 import { checkGuards } from "./guards";
-import { getRule, JOBS, type JobName } from "./machine";
+import { ACTIVE_RUN_STATUSES, BUSY_RUN_STATUSES, getRule, JOBS, type JobName } from "./machine";
 import { questionKey } from "./normalize";
 import { transition, transitionInTx } from "./transition";
 
@@ -70,7 +70,7 @@ export async function finishRun(
     const [run] = await tx
       .update(agentRun)
       .set({ status: result.status, output: result.output, error: result.error, finishedAt: new Date() })
-      .where(and(eq(agentRun.id, runId), inArray(agentRun.status, ["queued", "running"])))
+      .where(and(eq(agentRun.id, runId), inArray(agentRun.status, BUSY_RUN_STATUSES)))
       .returning();
     if (run) {
       await notify(tx, { type: "run", runId, applicationId: run.applicationId, status: result.status, jobName: run.jobName });
@@ -89,7 +89,7 @@ async function startSoloRun(
     const active = await tx
       .select({ id: agentRun.id })
       .from(agentRun)
-      .where(and(eq(agentRun.role, run.role), inArray(agentRun.status, ["queued", "running"])))
+      .where(and(eq(agentRun.role, run.role), inArray(agentRun.status, BUSY_RUN_STATUSES)))
       .limit(1);
     if (active.length) throw new TransitionError("busy", run.busyMessage);
     const [row] = await tx
@@ -186,7 +186,7 @@ export async function raiseBlocker(
   return withTx(ctx.pool, async (tx) => {
     const [run] = await tx.select().from(agentRun).where(eq(agentRun.id, runId)).for("update");
     if (!run?.applicationId) throw new Error("Blockers need a run attached to an application.");
-    if (!["queued", "running", "paused"].includes(run.status)) throw new Error("This run is no longer active.");
+    if (!(ACTIVE_RUN_STATUSES as readonly string[]).includes(run.status)) throw new Error("This run is no longer active.");
     const [row] = await tx
       .insert(blocker)
       .values({

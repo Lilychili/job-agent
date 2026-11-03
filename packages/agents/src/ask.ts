@@ -22,6 +22,8 @@ export async function askClaude(req: {
   model: string;
   system: string;
   prompt: string;
+  /** The start of the prompt that repeats across calls. Cached on the API; put in front of `prompt` for Claude Code. */
+  sharedPrefix?: string;
   schema: object;
   tool: { name: string; description: string };
   maxTokens: number;
@@ -29,13 +31,13 @@ export async function askClaude(req: {
   webSearch?: boolean;
   signal?: AbortSignal;
 }): Promise<{ output: unknown; usage: Usage; listCostUsd: number }> {
-  const { auth, model, system, prompt, schema, tool, maxTokens, webSearch, signal } = req;
+  const { auth, model, system, prompt, sharedPrefix, schema, tool, maxTokens, webSearch, signal } = req;
   if (auth.kind === "cli") {
-    const res = await runClaudeCli({ system, prompt, schema, model, tools: webSearch ? ["WebSearch"] : undefined, maxTurns: webSearch ? MAX_SEARCH_TURNS_CLI : undefined, signal });
+    const res = await runClaudeCli({ system, prompt: sharedPrefix ? `${sharedPrefix}\n\n${prompt}` : prompt, schema, model, tools: webSearch ? ["WebSearch"] : undefined, maxTurns: webSearch ? MAX_SEARCH_TURNS_CLI : undefined, signal });
     return { output: res.structured, usage: res.usage, listCostUsd: res.listCostUsd };
   }
   if (webSearch) return askWithWebSearch({ ...req, auth });
-  const res = await createMessage({ apiKey: auth.apiKey, model, system, prompt, maxTokens, tool: { ...tool, input_schema: schema }, signal });
+  const res = await createMessage({ apiKey: auth.apiKey, model, system, prompt, sharedPrefix, maxTokens, tool: { ...tool, input_schema: schema }, signal });
   const call = res.content.find((b): b is Extract<ContentBlock, { type: "tool_use" }> => b.type === "tool_use");
   return { output: call?.input ?? null, usage: res.usage, listCostUsd: 0 };
 }

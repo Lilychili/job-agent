@@ -13,7 +13,7 @@ import {
 } from "@jobagent/db";
 import { TransitionError, type CoreContext } from "./context";
 import { checkGuards } from "./guards";
-import { getRule, type Action, type Status } from "./machine";
+import { ACTIVE_RUN_STATUSES, getRule, type Action, type Status } from "./machine";
 
 export interface TransitionOptions {
   /** Who is asking. Owner requests can't trigger system actions and vice versa. */
@@ -33,8 +33,6 @@ export interface TransitionResult {
   /** Set when the transition queued an agent run. */
   runId?: string;
 }
-
-const ACTIVE_RUN_STATUSES = ["queued", "running", "paused"] as const;
 
 const RUN_OUTCOME: Partial<Record<Action, "succeeded" | "failed">> = {
   craftSucceeded: "succeeded",
@@ -246,7 +244,7 @@ async function lockLatestDocuments(
 }
 
 export function isUniqueViolation(err: unknown, constraint?: string): boolean {
-  for (let e: any = err; e; e = e.cause) {
+  for (let e = err as { code?: string; constraint?: string; cause?: unknown } | undefined; e; e = e.cause as typeof e) {
     if (e.code === "23505" && (!constraint || e.constraint === constraint)) return true;
   }
   return false;
