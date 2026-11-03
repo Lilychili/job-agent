@@ -13,7 +13,7 @@ import {
 } from "@jobagent/db";
 import { TransitionError, type CoreContext } from "./context";
 import { checkGuards } from "./guards";
-import { ACTIVE_RUN_STATUSES, getRule, type Action, type Status } from "./machine";
+import { ACTIVE_RUN_STATUSES, getRule, JOBS, type Action, type Status } from "./machine";
 
 export interface TransitionOptions {
   /** Who is asking. Owner requests can't trigger system actions and vice versa. */
@@ -112,12 +112,23 @@ export async function transitionInTx(
           .where(and(eq(agentRun.applicationId, app.id), inArray(agentRun.status, ACTIVE_RUN_STATUSES)));
         patch.hasOpenBlocker = false;
         break;
+      case "supersedeLocate":
+        // Looking for the form is never worth blocking the owner's next click.
+        await tx
+          .update(agentRun)
+          .set({ status: "superseded", finishedAt: new Date() })
+          .where(and(eq(agentRun.applicationId, app.id), eq(agentRun.jobName, JOBS.shipperLocate), inArray(agentRun.status, ACTIVE_RUN_STATUSES)));
+        break;
       case "lockDocuments": {
         const locked = await lockLatestDocuments(tx, app.id);
         patch.approvedCvDocId = locked.cv;
         patch.approvedLetterDocId = locked.coverLetter;
         break;
       }
+      case "unlockDocuments":
+        patch.approvedCvDocId = null;
+        patch.approvedLetterDocId = null;
+        break;
       case "recordSubmission":
         // Written synchronously with the click: this row is what blocks any second submission.
         await tx.insert(evidence).values({

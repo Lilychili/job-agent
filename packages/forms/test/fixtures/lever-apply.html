@@ -1,0 +1,55 @@
+<!doctype html>
+<!-- A trimmed copy of a real Lever apply page's form markup (November 2026), for tests. -->
+<html>
+<head><meta charset="utf-8"><title>Acme - Engineer</title></head>
+<body>
+<form id="application-form" enctype="multipart/form-data" method="POST">
+  <div class="section application-form">
+    <ul>
+      <li class="application-question resume"><label><div class="application-label">Resume/CV <span class="required">✱</span></div><div class="application-field"><a href="#" class="visible-resume-upload"><span class="default-label">ATTACH RESUME/CV</span><input class="application-file-input invisible-resume-upload" data-qa="input-resume" id="resume-upload-input" name="resume" tabindex="-1" type="file"></a><span class="resume-upload-working" style="display:none">Analyzing resume...</span></div></label></li>
+      <li class="application-question"><label><div class="application-label">Full name<span class="required">✱</span></div><div class="application-field"><input type="text" data-qa="name-input" name="name" required></div></label></li>
+      <li class="application-question"><label><div class="application-label">Email<span class="required">✱</span></div><div class="application-field"><input name="email" data-qa="email-input" type="email" required></div></label></li>
+      <li class="application-question"><label><div class="application-label">Phone</div><div class="application-field"><input type="text" data-qa="phone-input" name="phone"></div></label></li>
+      <li class="application-question"><label><div class="application-label">Current location<span class="required">✱</span></div><div class="application-field"><input class="location-input" id="location-input" type="text" maxlength="100" name="location" required><input id="selected-location" type="hidden" name="selectedLocation"></div></label></li>
+      <li class="application-question"><label><div class="application-label">Current company</div><div class="application-field"><input type="text" data-qa="org-input" name="org"></div></label></li>
+    </ul>
+  </div>
+  <div class="section application-form">
+    <h4>Links</h4>
+    <ul>
+      <li class="application-question"><label><div class="application-label">LinkedIn URL</div><div class="application-field"><input type="text" name="urls[LinkedIn]"></div></label></li>
+      <li class="application-question"><label><div class="application-label">GitHub URL</div><div class="application-field"><input type="text" name="urls[GitHub]"></div></label></li>
+      <li class="application-question"><label><div class="application-label">Portfolio URL</div><div class="application-field"><input type="text" name="urls[Portfolio]"></div></label></li>
+      <li class="application-question"><label><div class="application-label">Other website</div><div class="application-field"><input type="text" name="urls[Other]"></div></label></li>
+    </ul>
+  </div>
+  <div class="section application-form">
+    <input type="hidden" value="{&quot;text&quot;:&quot;Work Authorization&quot;,&quot;fields&quot;:[{&quot;type&quot;:&quot;multiple-choice&quot;,&quot;text&quot;:&quot;Are you legally authorized to work in the country for which you are applying?&quot;,&quot;required&quot;:true,&quot;options&quot;:[{&quot;text&quot;:&quot;Yes&quot;},{&quot;text&quot;:&quot;No&quot;}]},{&quot;type&quot;:&quot;multiple-choice&quot;,&quot;text&quot;:&quot;Will you now or in the future require visa sponsorship?&quot;,&quot;required&quot;:true,&quot;options&quot;:[{&quot;text&quot;:&quot;Yes&quot;},{&quot;text&quot;:&quot;No&quot;}]}],&quot;id&quot;:&quot;c1&quot;}" name="cards[c1][baseTemplate]">
+    <ul>
+      <li class="application-question custom-question"><div><div class="application-label full-width multiple-choice"><div class="text">Are you legally authorized to work in the country for which you are applying?<span class="required">✱</span></div></div><div class="application-field full-width required-field"><ul data-qa="multiple-choice"><li><label><input type="radio" name="cards[c1][field0]" value="Yes" required="required" /><span class="application-answer-alternative">Yes</span></label></li><li><label><input type="radio" name="cards[c1][field0]" value="No" required="required" /><span class="application-answer-alternative">No</span></label></li></ul></div></div></li>
+      <li class="application-question custom-question"><div><div class="application-label full-width multiple-choice"><div class="text">Will you now or in the future require visa sponsorship?<span class="required">✱</span></div></div><div class="application-field full-width required-field"><ul data-qa="multiple-choice"><li><label><input type="radio" name="cards[c1][field1]" value="Yes" required="required" /><span class="application-answer-alternative">Yes</span></label></li><li><label><input type="radio" name="cards[c1][field1]" value="No" required="required" /><span class="application-answer-alternative">No</span></label></li></ul></div></div></li>
+    </ul>
+  </div>
+  <div class="section application-form">
+    <input type="hidden" value="{&quot;text&quot;:&quot;Supplementary Questions&quot;,&quot;fields&quot;:[{&quot;type&quot;:&quot;multiple-select&quot;,&quot;text&quot;:&quot;Language Skill(s) (Check all that apply)&quot;,&quot;required&quot;:true,&quot;options&quot;:[{&quot;text&quot;:&quot;English (ENG)&quot;},{&quot;text&quot;:&quot;Spanish (SPA)&quot;},{&quot;text&quot;:&quot;French (FRA)&quot;}]},{&quot;type&quot;:&quot;text&quot;,&quot;text&quot;:&quot;Preferred Name | What would you like us to call you?&quot;,&quot;required&quot;:false},{&quot;type&quot;:&quot;dropdown&quot;,&quot;text&quot;:&quot;How did you hear about this position?&quot;,&quot;required&quot;:true,&quot;options&quot;:[{&quot;text&quot;:&quot;Company website&quot;},{&quot;text&quot;:&quot;Friend or Family&quot;}]},{&quot;type&quot;:&quot;textarea&quot;,&quot;text&quot;:&quot;What has been your proudest accomplishment?&quot;,&quot;required&quot;:false}],&quot;id&quot;:&quot;c2&quot;}" name="cards[c2][baseTemplate]">
+    <ul>
+      <li class="application-question custom-question"><div><div class="application-label full-width multiple-select"><div class="text">Language Skill(s) (Check all that apply)<span class="required">✱</span></div></div><div class="application-field full-width required-field"><ul data-qa="checkboxes"><li><label><input type="checkbox" name="cards[c2][field0]" value="English (ENG)" /><span class="application-answer-alternative">English (ENG)</span></label></li><li><label><input type="checkbox" name="cards[c2][field0]" value="Spanish (SPA)" /><span class="application-answer-alternative">Spanish (SPA)</span></label></li><li><label><input type="checkbox" name="cards[c2][field0]" value="French (FRA)" /><span class="application-answer-alternative">French (FRA)</span></label></li></ul></div></div></li>
+      <li class="application-question custom-question"><div><div class="application-label full-width text"><div class="text">Preferred Name | What would you like us to call you?</div></div><div class="application-field full-width"><input class="card-field-input" type="text" placeholder="Type your response" value="" name="cards[c2][field1]" /></div></div></li>
+      <li class="application-question custom-question"><div><div class="application-label full-width dropdown"><div class="text">How did you hear about this position?<span class="required">✱</span></div></div><div class="application-field full-width required-field"><div class="application-dropdown"><select name="cards[c2][field2]" required><option value="">Click Here</option><option value="Company website">Company website</option><option value="Friend or Family">Friend or Family</option></select></div></div></div></li>
+      <li class="application-question custom-question"><div><div class="application-label full-width textarea"><div class="text">What has been your proudest accomplishment?</div></div><div class="application-field full-width"><textarea class="card-field-input" name="cards[c2][field3]"></textarea></div></div></li>
+    </ul>
+  </div>
+  <div class="section page-centered application-form"><label for="additional-information"><h4>Additional information</h4></label><div class="application-additional"><textarea placeholder="Add a cover letter or anything else you want to share." name="comments" id="additional-information"></textarea></div></div>
+  <div class="section application-form">
+    <ul>
+      <li class="application-question"><label><div class="application-label">Gender</div><div class="application-field"><select name="eeo[gender]"><option value="">Select ...</option><option value="Female">Female</option><option value="Male">Male</option><option value="Decline to self-identify">Decline to self-identify</option></select></div></label></li>
+    </ul>
+  </div>
+  <input type="hidden" name="accountId" value="acct">
+  <input type="hidden" name="h-captcha-response">
+  <a id="away" href="https://example.invalid/phish">Read our privacy policy</a>
+  <button id="hcaptchaSubmitBtn" type="submit" class="hidden">Submit</button>
+  <button id="btn-submit" type="button" data-qa="btn-submit" onclick="document.getElementById('hcaptchaSubmitBtn').click()">Submit application</button>
+</form>
+</body>
+</html>

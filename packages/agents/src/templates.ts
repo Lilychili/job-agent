@@ -67,6 +67,11 @@ export function cvHtml(content: CvContent, contact: Contact, facts: ProfileFact[
   ].join(""));
 }
 
+/** The letter as plain text, for forms that take it in a text box (Lever's "Additional information"). */
+export function letterText(content: LetterContent, contact: Contact): string {
+  return [content.greeting, ...content.paragraphs.map((p) => p.text), content.closing, contact.name].map((s) => s.trim()).filter(Boolean).join("\n\n");
+}
+
 export function letterHtml(content: LetterContent, contact: Contact): string {
   const paragraphs = content.paragraphs.map((p) => `<p>${escapeHtml(p.text)}</p>`).join("");
   return page(`${contact.name} cover letter`, `<div class="letter">${header(contact)}<p>${escapeHtml(content.greeting)}</p>${paragraphs}<p>${escapeHtml(content.closing)}</p><p>${escapeHtml(contact.name)}</p></div>`);

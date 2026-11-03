@@ -1,8 +1,8 @@
-// Craft: Claude drafts a CV and cover letter from confirmed facts, code checks every citation, then the
-// documents are printed to PDF, stripped of metadata, hashed and saved as a new version. The card then
-// waits in Drafted until the owner keeps the draft in the Craft modal. Pen writes from the posting itself;
-// the job's requirements are only shown to the owner, so ones never read, or matched against an older
-// Profile, are read again first and the card and modal count a fact the owner just added.
+// Craft: Claude tailors the owner's CV (every fact kept, reordered and reworded for the job) and writes a
+// cover letter, code checks every citation, then the documents are printed to PDF, stripped of metadata,
+// hashed and saved as a new version. The card then waits in Drafted until the owner approves the draft in
+// the Craft modal. Pen orders the CV by the job's requirements, so ones never read, or matched against an
+// older Profile, are read again first; the card and modal then also count a fact the owner just added.
 import { eq } from "drizzle-orm";
 import { addUsage, craftDocuments, NO_USAGE, printDocuments, readRequirements, withDocuments } from "@jobagent/agents";
 import { transitionInTx } from "@jobagent/core";
@@ -27,22 +27,24 @@ export async function penCraft({ ctx, run, log, signal }: RunHelpers): Promise<O
 
   let usage = NO_USAGE;
   let readVersion: string | null = null;
+  let requirements = target.requirements;
   if (!target.requirements || target.matchedVersion !== p.version) {
     await log("Reading what the job requires…");
     try {
       const read = await readRequirements({ auth, model, facts: p.facts, job: target, signal });
       usage = read.usage;
       readVersion = read.promptVersion;
+      requirements = read.requirements;
       await db.update(job).set({ requirements: read.requirements, requirementsProfileVersion: p.version }).where(eq(job.id, target.id));
     } catch (err) {
       if (signal.aborted) throw err;
-      // Only the owner's view needs them, so the draft goes on; the next craft tries again.
+      // Pen can order the CV from the posting alone, so the draft goes on; the next craft tries again.
       await log(`Couldn't read the job's requirements: ${errorText(err)}`);
     }
   }
 
   await log(`Writing a CV and cover letter for ${target.company}…`);
-  const { draft, promptVersion: penVersion, usage: penUsage } = await craftDocuments({ auth, model, facts: p.facts, job: target, whyTemplate: why?.answer.trim() || null, signal, log });
+  const { draft, promptVersion: penVersion, usage: penUsage } = await craftDocuments({ auth, model, facts: p.facts, job: { ...target, requirements: requirements?.map((r) => r.text) }, whyTemplate: why?.answer.trim() || null, signal, log });
   // A run that used Search's prompt too records both versions.
   const promptVersion = [penVersion, readVersion].filter(Boolean).join("+");
   await saveUsage(ctx, run.id, { model, promptVersion, usage: addUsage(usage, penUsage) });

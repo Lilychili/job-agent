@@ -16,6 +16,8 @@ interface Stored {
   facts: ProfileFact[];
   confirmed: boolean;
   version: number;
+  /** The CV file the saved facts came from. */
+  sourceFilePath: string | null;
 }
 interface Extraction {
   id: string;
@@ -78,6 +80,8 @@ export function ProfileEditor({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [appliedRun, setAppliedRun] = useState<string | null>(null);
+  const [uploadedRun, setUploadedRun] = useState<string | null>(null);
+  const [savedSource, setSavedSource] = useState(initial?.sourceFilePath ?? null);
   const fileInput = useRef<HTMLInputElement>(null);
   const running = extraction?.status === "queued" || extraction?.status === "running";
 
@@ -98,23 +102,34 @@ export function ProfileEditor({
     setUploading(true);
     const form = new FormData();
     form.set("file", file);
-    const res = await api("/api/profile/extract", "POST", form);
+    const res = await api<{ runId: string }>("/api/profile/extract", "POST", form);
     setUploading(false);
     if (fileInput.current) fileInput.current.value = "";
     if (!res.ok) return setUploadError(res.error);
+    setUploadedRun(res.data.runId);
     await refreshExtraction();
   }
 
-  function applyExtraction() {
+  /** Put the facts read from the CV in the editor. Asks first only when it would throw away unsaved edits. */
+  function applyExtraction(askFirst: boolean) {
     const out = extraction?.output;
     if (!out) return;
-    if (facts.length > 0 && !confirm("Replace the facts and contact details below with the ones read from your CV?")) return;
+    if (askFirst && facts.length > 0 && !confirm("Replace the facts and contact details below with the ones read from your CV?")) return;
     setContact(toContact(out.contact));
     setFacts(toFacts(out.facts));
     setAppliedRun(extraction!.id);
     setDirty(true);
     setState({ kind: "idle" });
   }
+
+  // A CV uploaded here goes straight into the editor once it is read: uploading it was the decision.
+  useEffect(() => {
+    if (extraction?.status === "succeeded" && extraction.id === uploadedRun && appliedRun !== extraction.id) applyExtraction(dirty);
+    // Runs when the read finishes; the other values are read at that moment.
+  }, [extraction?.status, extraction?.id, uploadedRun]);
+
+  // A CV that was read but never loaded and saved: the Profile still holds the old one.
+  const unsavedCv = extraction?.status === "succeeded" && !!extraction.output && extraction.output.sourceFile !== savedSource && appliedRun !== extraction.id;
 
   // ── editing ───────────────────────────────────────────────────────────────
   const touch = () => {
@@ -151,6 +166,7 @@ export function ProfileEditor({
     setFacts(toFacts(res.data.facts));
     setContact(toContact(res.data.contact));
     setMeta({ confirmed: res.data.confirmed, version: res.data.version });
+    setSavedSource(res.data.sourceFilePath);
     setDirty(false);
     setState({ kind: "saved", message: confirmIt ? `Confirmed (version ${res.data.version}).` : "Saved." });
   }
@@ -196,11 +212,16 @@ export function ProfileEditor({
                   ✓ Read <strong>{extraction.fileName}</strong>: {extraction.output.facts.length} facts found.
                 </p>
                 {appliedRun === extraction.id ? (
-                  <p className="hint">Loaded below. Review it, then save and confirm.</p>
+                  <p className="hint">Loaded below. Review it, then click {meta.confirmed ? "Save changes" : "Confirm profile"} at the bottom.</p>
+                ) : unsavedCv ? (
+                  <>
+                    <p className="error">This CV isn&apos;t in your Profile yet. Load it, review it, then save.</p>
+                    <button type="button" className="btn primary" onClick={() => applyExtraction(true)}>
+                      Load it into the editor
+                    </button>
+                  </>
                 ) : (
-                  <button type="button" className="btn primary" onClick={applyExtraction}>
-                    Review in the editor
-                  </button>
+                  <p className="hint">This is the CV your Profile was saved from.</p>
                 )}
               </div>
             )}
@@ -304,6 +325,7 @@ export function ProfileEditor({
           <p className="hint">
             Search, Craft and Apply stay locked until the Profile is confirmed. Every sentence in a CV or cover letter must trace back to one of these facts.
           </p>
+          {unsavedCv && <p className="error">Your new CV isn&apos;t loaded below yet. Use &quot;Load it into the editor&quot; at the top first.</p>}
           <SaveBar state={state} dirty={dirty}>
             {!meta.confirmed && (
               <button className="btn" disabled={!dirty || state.kind === "saving"}>

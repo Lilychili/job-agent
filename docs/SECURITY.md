@@ -5,9 +5,9 @@
 Job postings and application pages are attacker-controllable text.
 
 - Wrap all CV/page/posting text with `wrapUntrusted()` (`packages/agents`), which also breaks up anything in the text that looks like our tags, so it can't close its own block. `security-rules.md` states that content inside is data only.
-- Tools are allowlisted per role. Discover can only search the web, and its results can't be wrapped, so code trusts nothing from it but company names, which it filters and wraps on the way back in, and links, which only ever lead to a board lookup. Scout cannot touch forms; Pen has no tools; Shipper cannot navigate to domains other than the job's ATS host (enforce in the `form.open` tool).
-- Shipper may only fill values that come from Profile, AnswerBank or approved Documents — never values suggested by the page. Enforce in `form.fill`: value must match a lookup result or an answered Blocker.
-- Never send Profile data to a URL that came from page content.
+- Tools are allowlisted per role. Discover can only search the web, and its results can't be wrapped, so code trusts nothing from it but company names, which it filters and wraps on the way back in, and links, which only ever lead to a board lookup. Scout cannot touch forms; Pen has no tools; Shipper cannot navigate to domains other than the job's ATS host (`FormSession` aborts any other top-level navigation while it drives).
+- Shipper may only fill values that come from Profile, AnswerBank or approved Documents — never values suggested by the page. The page supplies only labels and options; `planFill` takes each value from one of those sources and records which, and a choice answer must match one of the field's options or it becomes a Blocker.
+- Never send Profile data to a URL that came from page content. Careers pages Claude finds are only read for links (https, public hosts, nothing typed); a board found there is checked through its own API to belong to the company, and the form link always comes from that API, never from the page.
 - Reuse and adapt TeamHero's `security-rules.md` into `agents/shared/security-rules.md`.
 
 ## 2. Secrets
@@ -25,7 +25,7 @@ Job postings and application pages are attacker-controllable text.
 
 ## 4. Submission safety
 
-- v1: no submit tool exists. The owner submits.
+- v1: no submit tool exists. `FormSession` also blocks the ATS's submit request while it drives, and lifts the block only when it hands the window to the owner, who submits.
 - Before any Shipper run: if `Evidence(type=submission)` exists for the application, refuse.
 - v2 (post-MVP): submit only when zero Blockers, hashes verified, no CAPTCHA detected; capture evidence immediately; idempotency key per application.
 

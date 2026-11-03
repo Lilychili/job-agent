@@ -13,18 +13,21 @@ const PREVIEW_DELAY_MS = 800;
 
 /**
  * The Craft modal: Claude's draft on the left, the PDF it prints to on the right. Opens as soon as
- * Craft is clicked and shows Claude's progress until the draft is saved.
+ * Craft is clicked and shows Claude's progress until the draft is saved. Approve here moves a draft
+ * to Crafted, and Crafted documents to Approved.
  */
 export function CraftModal({
   card,
   onClose,
   onChanged,
   regenerate,
+  approve,
 }: {
   card: BoardCard;
   onClose: () => void;
   onChanged: () => Promise<void>;
   regenerate: () => ReturnType<typeof api>;
+  approve: () => ReturnType<typeof api>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [data, setData] = useState<CraftData | null>(null);
@@ -33,7 +36,7 @@ export function CraftModal({
   const [tab, setTab] = useState<Kind>("cv");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<"save" | "approve" | null>(null);
   const writing = card.status === "crafting";
 
   useEffect(() => {
@@ -68,14 +71,18 @@ export function CraftModal({
     dialog.current?.close();
   }
 
-  async function keep() {
+  /** Save the documents; Approve moves a draft to Crafted, and approves Crafted ones after saving any edits. */
+  async function keep(mode: "save" | "approve") {
     if (!cv || !letter) return;
-    setSaving(true);
+    const andApprove = mode === "approve" && card.status === "crafted";
+    setSaving(mode);
     setActionError(null);
-    const res = await api(`/api/applications/${card.id}/documents`, "POST", { cv, coverLetter: letter });
-    setSaving(false);
-    if (!res.ok) return setActionError(res.error);
+    // An unchanged Crafted document needs no save: approving locks the saved version.
+    const saved = card.status === "drafted" || dirty ? await api(`/api/applications/${card.id}/documents`, "POST", { cv, coverLetter: letter }) : null;
+    const res = saved && !saved.ok ? saved : andApprove ? await approve() : saved;
+    setSaving(null);
     await onChanged();
+    if (res && !res.ok) return setActionError(res.error);
     dialog.current?.close();
   }
 
@@ -110,7 +117,8 @@ export function CraftModal({
   }
 
   const job = { company: card.company, title: card.title };
-  const canRegenerate = card.actions.some((a) => a.action === "regenerate");
+  // Asking Claude again lives here, not on the card.
+  const canRegenerate = card.status === "drafted" || card.status === "crafted";
 
   return (
     <dialog
@@ -192,7 +200,7 @@ export function CraftModal({
         <div className="craft-actions">
           <div className="actions">
             {canRegenerate && !writing && (
-              <button type="button" className="btn ghost" onClick={() => void askAgain()} disabled={saving}>
+              <button type="button" className="btn ghost" onClick={() => void askAgain()} disabled={!!saving}>
                 Ask Claude again
               </button>
             )}
@@ -200,16 +208,21 @@ export function CraftModal({
           <div className="actions">
             {saved && (
               dirty ? (
-                <span className="hint">Craft to download your edits</span>
+                <span className="hint">{card.status === "drafted" ? "Approve" : "Save"} to download your edits</span>
               ) : (
                 <button type="button" className="btn" onClick={() => void download(saved.id)}>
                   Download {tab === "cv" ? "CV" : "cover letter"}
                 </button>
               )
             )}
-            {editable && (card.status === "drafted" || dirty) && (
-              <button type="button" className="btn primary" onClick={() => void keep()} disabled={saving}>
-                {saving ? "Crafting…" : card.status === "drafted" ? "Craft" : "Save changes"}
+            {editable && card.status === "crafted" && dirty && (
+              <button type="button" className="btn" onClick={() => void keep("save")} disabled={!!saving}>
+                {saving === "save" ? "Saving…" : "Save changes"}
+              </button>
+            )}
+            {editable && (card.status === "drafted" || card.status === "crafted") && (
+              <button type="button" className="btn primary" onClick={() => void keep("approve")} disabled={!!saving}>
+                {saving === "approve" ? "Approving…" : "Approve"}
               </button>
             )}
           </div>

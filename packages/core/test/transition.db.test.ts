@@ -128,18 +128,35 @@ describe("craft", () => {
     expect((await status(appId)).status).toBe("shortlisted");
   });
 
-  it("success closes the run and waits in Drafted until the owner keeps the draft", async () => {
+  it("success closes the run and lands in Crafted", async () => {
     await seedProfile(env);
     const { appId } = await makeApp(env, "shortlisted");
     const { runId } = await transition(env.ctx, appId, "craft");
     await transition(env.ctx, appId, "craftSucceeded", { actor: "system", runId });
-    expect((await status(appId)).status).toBe("drafted");
+    expect((await status(appId)).status).toBe("crafted");
     const [run] = await env.db.select().from(agentRun).where(eq(agentRun.id, runId!));
     expect(run!.status).toBe("succeeded");
+  });
+
+  it("a draft from before keeps its Approve, which needs a saved CV", async () => {
+    const { appId } = await makeApp(env, "drafted");
     await expectError(transition(env.ctx, appId, "keepDraft"), "guard", /draft/);
     await makeDocument(env, appId, "cv");
     await transition(env.ctx, appId, "keepDraft");
     expect((await status(appId)).status).toBe("crafted");
+  });
+
+  it("Dismiss steps back: Crafted to Shortlisted, Approved to Crafted with the documents unlocked", async () => {
+    const { appId } = await makeApp(env, "crafted");
+    await makeDocument(env, appId, "cv");
+    await transition(env.ctx, appId, "approve");
+    expect((await status(appId)).approvedCvDocId).not.toBeNull();
+    await transition(env.ctx, appId, "unApprove");
+    expect(await status(appId)).toMatchObject({ status: "crafted", approvedCvDocId: null, approvedLetterDocId: null });
+    await transition(env.ctx, appId, "unCraft");
+    expect((await status(appId)).status).toBe("shortlisted");
+    const [job_] = await env.pool.query("select archived from job j join application a on a.job_id = j.id where a.id = $1", [appId]).then((r) => r.rows);
+    expect(job_.archived).toBe(false);
   });
 
   it("a failed new draft returns to the draft it replaced", async () => {
@@ -195,6 +212,16 @@ describe("apply", () => {
     await transition(env.ctx, appId, "approve");
     return { appId, cv };
   }
+
+  it("starts looking for the form on approval, and Apply takes over from an unfinished search", async () => {
+    const { appId } = await approvedApp();
+    const locate = env.enqueued.at(-1)!;
+    expect(locate.name).toBe("shipper.locate");
+    await transition(env.ctx, appId, "apply");
+    const [run] = await env.db.select().from(agentRun).where(eq(agentRun.id, locate.id));
+    expect(run!.status).toBe("superseded");
+    expect(env.enqueued.at(-1)?.name).toBe("shipper.prefill");
+  });
 
   it("queues the Shipper when approved files are intact", async () => {
     const { appId } = await approvedApp();

@@ -1,5 +1,7 @@
-// Writes a CV and cover letter for one job. Claude gets no tools and only words what the confirmed Profile
-// facts say. Every claim cites its facts, and code rejects unknown citations and numbers no cited fact
+// Writes a CV and cover letter for one job. The CV is the owner's own CV, tailored: every role, every
+// achievement, skill, degree, certificate and language stays, and Claude only chooses their order and
+// rewords each achievement for the job. Code checks nothing was left out, added or used twice. Claude
+// gets no tools; every claim cites its facts, and code rejects unknown citations and numbers no cited fact
 // holds. Names, role titles, employers and dates aren't Claude's to write: the templates take them from
 // the Profile.
 import { ValidationError, str } from "@jobagent/core";
@@ -13,8 +15,6 @@ import { wrapUntrusted } from "./untrusted";
 const MAX_TEXT_CHARS = 1200;
 // Whole postings: what the job needs can sit near the end of a long one.
 const MAX_POSTING_PROMPT_CHARS = 40_000;
-// The prompt asks for 2–5 bullets, but a role whose Profile holds one achievement can only truthfully have one.
-const BULLETS = [1, 5] as const;
 const PARAGRAPHS = [3, 4] as const;
 const OTHER_KINDS: readonly FactKind[] = ["education", "cert", "language"];
 
@@ -67,6 +67,8 @@ export interface PenJob {
   company: string;
   title: string;
   posting: string;
+  /** The posting's core requirements, most important first, when Search has read them. */
+  requirements?: string[] | null;
 }
 
 export interface PenDraft {
@@ -132,7 +134,6 @@ export function parseDraft(output: unknown, facts: ProfileFact[], job: Pick<PenJ
     if (roles.has(role.id)) throw new ValidationError(`${where} repeats the role "${role.id}".`);
     roles.add(role.id);
     const items = citedList(bullets, where, (j) => `${where}, bullet ${j + 1}`);
-    count(items.length, BULLETS, `${where}'s bullet count`);
     return { roleFactId: role.id, bullets: items };
   });
   const paragraphs = citedList(coverLetter.paragraphs, "The letter", (i) => `Paragraph ${i + 1}`);
@@ -148,6 +149,7 @@ export function parseDraft(output: unknown, facts: ProfileFact[], job: Pick<PenJ
   const summary = cited(cv.summary, "The summary");
   const skills = citedList(cv.skills, "Skills", (i) => `Skill ${i + 1}`);
   if (!owner) {
+    checkKeepsTheCv({ experience, skills, otherFactIds }, facts);
     checkLevelWords(
       [
         { text: summary.text, where: "The summary" },
@@ -158,10 +160,61 @@ export function parseDraft(output: unknown, facts: ProfileFact[], job: Pick<PenJ
       job.title,
     );
   }
+  // Roles stay in CV order, most recent first, whatever order Claude gave them in.
+  if (!owner) {
+    const start = (id: string) => byId.get(id)?.startDate ?? "";
+    experience.sort((a, b) => start(b.roleFactId).localeCompare(start(a.roleFactId)));
+  }
   return {
     cv: { summary, experience, skills, otherFactIds },
     coverLetter: { greeting: free(coverLetter.greeting, "The greeting"), paragraphs, closing: free(coverLetter.closing, "The closing") },
   };
+}
+
+// Both sides go through the same squashing, so accented names still match each other.
+const orgKey = (org: string | undefined) => (org ?? "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).join(" ");
+const named = (f: ProfileFact) => `"${[f.text, f.org].filter(Boolean).join(", ").slice(0, 80)}" (${f.id})`;
+
+/**
+ * The CV is the owner's CV in a better order and wording, so nothing is left out or added: every role;
+ * each of a role's achievements exactly once, as one bullet under that role; every skill; and every
+ * degree, certificate and language. An achievement whose employer matches no role may go under any role,
+ * or nowhere.
+ */
+function checkKeepsTheCv(cv: Pick<CvContent, "experience" | "skills" | "otherFactIds">, facts: ProfileFact[]) {
+  const shown = new Set(cv.experience.map((e) => e.roleFactId));
+  for (const role of facts.filter((f) => f.kind === "role")) {
+    if (!shown.has(role.id)) throw new ValidationError(`Experience leaves out the role ${named(role)}. Keep every role.`);
+  }
+  const roleOrgs = new Set(facts.filter((f) => f.kind === "role").map((f) => orgKey(f.org)).filter(Boolean));
+  const byId = new Map(facts.map((f) => [f.id, f]));
+  const used = new Set<string>();
+  cv.experience.forEach((e, i) => {
+    const role = byId.get(e.roleFactId)!;
+    e.bullets.forEach((b, j) => {
+      const where = `Experience ${i + 1}, bullet ${j + 1}`;
+      const achievements = b.factIds.map((id) => byId.get(id)!).filter((f) => f.kind === "achievement");
+      if (achievements.length !== 1) throw new ValidationError(`${where} must reword exactly one achievement and cite it; it cites ${achievements.length}.`);
+      const a = achievements[0]!;
+      if (used.has(a.id)) throw new ValidationError(`${where} repeats the achievement ${named(a)}. Use each achievement once.`);
+      used.add(a.id);
+      if (roleOrgs.has(orgKey(a.org)) && orgKey(a.org) !== orgKey(role.org)) {
+        throw new ValidationError(`${where} puts the achievement ${named(a)} under ${named(role)}. It belongs under the role at ${a.org}.`);
+      }
+    });
+  });
+  const left = facts.filter((f) => f.kind === "achievement" && roleOrgs.has(orgKey(f.org)) && !used.has(f.id));
+  if (left.length) {
+    throw new ValidationError(`Experience leaves out the achievement ${named(left[0]!)}${left.length > 1 ? ` and ${left.length - 1} more` : ""}. Keep every achievement, as one bullet under its role.`);
+  }
+  const skillsCited = new Set(cv.skills.flatMap((s) => s.factIds));
+  const skillsLeft = facts.filter((f) => f.kind === "skill" && !skillsCited.has(f.id));
+  if (skillsLeft.length) {
+    throw new ValidationError(`Skills leave out ${skillsLeft.slice(0, 5).map(named).join(", ")}${skillsLeft.length > 5 ? ` and ${skillsLeft.length - 5} more` : ""}. Keep every skill.`);
+  }
+  const other = new Set(cv.otherFactIds);
+  const otherLeft = facts.filter((f) => OTHER_KINDS.includes(f.kind) && !other.has(f.id));
+  if (otherLeft.length) throw new ValidationError(`Other facts leave out ${otherLeft.map(named).join(", ")}. List every degree, certificate and language.`);
 }
 
 // Words that give the owner a level. A job asking for seniority tempts a title the Profile never gave.
@@ -202,6 +255,8 @@ export async function craftDocuments(opts: {
     `<facts>\n${JSON.stringify(opts.facts)}\n</facts>`,
     wrapUntrusted("posting", [`Company: ${company}`, `Title: ${title}`, "", posting.slice(0, MAX_POSTING_PROMPT_CHARS)].join("\n")),
     `<why_template>\n${opts.whyTemplate ?? "none"}\n</why_template>`,
+    // Read by Claude from this posting earlier, so as untrusted as the posting itself.
+    ...(opts.job.requirements?.length ? [`<requirements>\n${wrapUntrusted("posting", opts.job.requirements.map((r, i) => `${i + 1}. ${r}`).join("\n"))}\n</requirements>`] : []),
     "Write the CV and the cover letter for this job.",
   ].join("\n\n");
   const schema = schemaFor(opts.facts);
@@ -218,7 +273,8 @@ export async function craftDocuments(opts: {
       prompt,
       schema,
       tool: { name: "submit_documents", description: "Submit the CV and the cover letter." },
-      maxTokens: 4000,
+      // The whole CV comes back now, not a selection of it.
+      maxTokens: 8000,
       signal: opts.signal,
     });
     usage = addUsage(usage, res.usage);

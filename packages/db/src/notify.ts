@@ -8,7 +8,9 @@ export type AppEvent =
   | { type: "application"; applicationId: string; status: string; hasOpenBlocker: boolean }
   | { type: "run"; runId: string; applicationId: string | null; status: string; jobName: string }
   | { type: "jobs_added"; count: number }
-  | { type: "heartbeat"; at: string };
+  | { type: "heartbeat"; at: string }
+  /** The owner asks to see an application's prefilled form; the worker brings its tab to the front. */
+  | { type: "show_form"; applicationId: string };
 
 /**
  * Queue a notification. Inside a transaction, Postgres delivers it only on COMMIT,

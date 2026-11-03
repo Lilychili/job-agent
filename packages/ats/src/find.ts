@@ -12,6 +12,8 @@ const BOARD_HOSTS: [RegExp, BoardAts][] = [
 const TOKEN = /^[A-Za-z0-9._-]+$/;
 const LEGAL_WORDS = /\b(incorporated|inc|llc|ltd|limited|gmbh|ag|se|sa|sas|sl|bv|plc|oy|ab|corp|corporation|company|co)\b\.?/g;
 const MAX_LINKS = 5;
+/** "Rover.com" is on Lever as "rover": a web address in a company name isn't part of its board name. */
+const WEB_SUFFIX = /\.(com|io|ai|co|net|org|dev|app|tech)\b/g;
 
 /** The board a careers link points at, e.g. https://jobs.lever.co/acme/123 → { lever, acme }. */
 export function boardFromUrl(raw: string): Board | null {
@@ -34,6 +36,7 @@ export function boardGuesses(company: string): string[] {
     .toLowerCase()
     .normalize("NFKD")
     .replace(/\p{M}/gu, "")
+    .replace(WEB_SUFFIX, " ")
     .replace(LEGAL_WORDS, " ")
     .match(/[a-z0-9]+/g);
   if (!words?.length) return [];

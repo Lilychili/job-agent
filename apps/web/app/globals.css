@@ -375,9 +375,12 @@ label.btn { cursor: pointer; }
   border: 1.5px solid var(--accent); color: var(--accent); background: var(--ready-bg); border-radius: 999px; padding: 4px 8px;
 }
 .pdf-pill:hover { background: var(--accent); color: #fff; }
+.card-docs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
 .pdf-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .dialog.craft { width: min(1280px, calc(100vw - 32px)); height: calc(100vh - 32px); }
+.dialog.pdf-preview { width: min(820px, calc(100vw - 32px)); height: calc(100vh - 32px); }
+.dialog.pdf-preview .craft-preview { flex: 1; }
 .craft-panel { height: 100%; gap: 12px; }
 .craft-panel h2 { font-size: 18px; }
 .craft-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
@@ -442,3 +445,10 @@ label.btn { cursor: pointer; }
 .choice.selected { border-color: var(--iris); box-shadow: 0 0 20px 2px rgb(232 121 249 / 0.2); background: rgb(255 255 255 / 0.85); }
 .choice input { flex: none; margin: 4px 0 0; accent-color: #6366f1; }
 .choice > span { display: flex; flex-direction: column; gap: 2px; }
+
+/* ---------- Prefill review ---------- */
+.form-line { margin-top: -4px; }
+.review-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.review-list li.met::before { content: "✓ "; color: var(--accent); }
+.review-list li.missed::before { content: "○ "; color: var(--warn); }
+.review-shot { width: 100%; height: auto; display: block; background: #fff; box-shadow: 0 4px 16px rgb(30 27 75 / 0.18); }

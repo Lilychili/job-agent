@@ -10,7 +10,7 @@
 | Worker | Separate Node process | Agent runs take minutes; never inside a request |
 | Live updates | Server-Sent Events | One-way server → board; simpler than WebSockets |
 | Browser automation / PDF | Playwright | Render PDFs and fill forms (already installed) |
-| LLM | Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) for Shipper; structured output with no tools for Scout, Pen and CV extraction | Agent loop where tools are needed; plain calls where they aren't |
+| LLM | Structured output with no tools for Scout, Pen and CV extraction, and for Shipper's custom-question mapping | Shipper fills forms with deterministic per-ATS adapters (`packages/forms`), so v1 needs no agent loop |
 
 > **Note on SQLite:** the brief allows SQLite for single-user. pg-boss needs Postgres, so if you choose SQLite you'd need a different queue. Recommendation: use Postgres from day one (a local Docker container is enough) and keep one queue story.
 
@@ -49,7 +49,8 @@ packages/
   agents/                   # Claude client wrapper, usage logging, structured-output schemas;
                             # Pen's HTML templates, render-to-PDF, metadata strip, document saving
   ats/                      # Greenhouse, Lever, Ashby clients (pure HTTP, no LLM)
-  forms/                    # Playwright form-filling adapters per ATS
+  forms/                    # Playwright form-filling adapters per ATS; FormSession enforces the
+                            # host lock, the submit block and the hash check in code
   security/                 # untrusted-content wrapping, secret encryption
 agents/
   scout/agent.md            # versioned prompt files
@@ -71,7 +72,7 @@ agents/
 
 - Jobs are idempotent: keyed by `applicationId + action + version`. Re-delivery of the same job is a no-op.
 - Checkpoints stored on `AgentRun.checkpoint` (JSON) so paused runs can resume.
-- Timeouts: Scout 5 min, Pen 3 min, Shipper 10 min. On timeout → run failed, card returns to previous status with error.
+- Timeouts: Scout 5 min, Pen 3 min, Shipper 10 min (finding the form: 4 min). On timeout → run failed, card returns to previous status with error.
 - Crash recovery: a dead worker can't time anything out, so at startup and with every heartbeat the worker fails runs left `running` past their limit (`failStaleRuns`). Otherwise the one-active-run rule would block the card for good.
 
 ## File storage

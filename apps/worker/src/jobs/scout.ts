@@ -16,8 +16,8 @@ import { errorText, forEachParallel } from "../util";
 // picked up by the next search.
 const SCORING_SHARES = { board: 20, indeed_alert: 10, linkedin_alert: 10 } as const;
 const MAX_SCORED_PER_SEARCH = Object.values(SCORING_SHARES).reduce((a, b) => a + b, 0);
-const BATCH_SIZE = 10;
-const PARALLEL_BATCHES = 3;
+export const BATCH_SIZE = 10;
+export const PARALLEL_BATCHES = 3;
 // Each search asks Claude for this many new companies; the ones with a board join the next searches too.
 const NEW_COMPANIES_PER_SEARCH = 15;
 // Discover gets part of the five minutes, so a slow web search can't cost the whole search.
@@ -27,7 +27,7 @@ const PARALLEL_BOARD_READS = 8;
 
 type Criteria = HardCriteria & ScoutPreferences & { companyBoards: Board[] };
 
-async function loadCriteria(ctx: RunHelpers["ctx"]): Promise<Criteria> {
+export async function loadCriteria(ctx: RunHelpers["ctx"]): Promise<Criteria> {
   const { rows } = await ctx.pool.query<Criteria>(
     `select roles, locations, remote, salary_floor as "salaryFloor", salary_currency as "salaryCurrency",
             stack_must_have as "stackMustHave", stack_nice_to_have as "stackNiceToHave",
@@ -39,11 +39,25 @@ async function loadCriteria(ctx: RunHelpers["ctx"]): Promise<Criteria> {
   return criteria;
 }
 
+/** What Claude is told the owner wants. */
+export function preferencesOf(criteria: Criteria): ScoutPreferences {
+  return {
+    roles: criteria.roles,
+    locations: criteria.locations,
+    remote: criteria.remote,
+    salaryFloor: criteria.salaryFloor,
+    salaryCurrency: criteria.salaryCurrency,
+    stackMustHave: criteria.stackMustHave,
+    stackNiceToHave: criteria.stackNiceToHave,
+    exclusions: criteria.exclusions,
+  };
+}
+
 /**
  * Requirements are matched against the confirmed Profile only, and remember its version so Pen can
  * match them again after a change. Before the Profile is confirmed, Search still scores.
  */
-async function confirmedProfile(ctx: RunHelpers["ctx"]): Promise<{ facts: ProfileFact[]; version: number | null }> {
+export async function confirmedProfile(ctx: RunHelpers["ctx"]): Promise<{ facts: ProfileFact[]; version: number | null }> {
   const { rows } = await ctx.pool.query<{ facts: ProfileFact[]; version: number }>(`select facts, version from profile where confirmed limit 1`);
   return rows[0] ?? { facts: [], version: null };
 }
@@ -152,16 +166,7 @@ function pickForScoring(ranked: Posting[]): Posting[] {
 export async function scoutSearch({ run, ctx, log, signal }: RunHelpers): Promise<Outcome> {
   const criteria = await loadCriteria(ctx);
   const { auth, model } = await claudeFromSettings(ctx);
-  const preferences: ScoutPreferences = {
-    roles: criteria.roles,
-    locations: criteria.locations,
-    remote: criteria.remote,
-    salaryFloor: criteria.salaryFloor,
-    salaryCurrency: criteria.salaryCurrency,
-    stackMustHave: criteria.stackMustHave,
-    stackNiceToHave: criteria.stackNiceToHave,
-    exclusions: criteria.exclusions,
-  };
+  const preferences = preferencesOf(criteria);
   const profile = await confirmedProfile(ctx);
   const read = boardReader(signal);
 
@@ -173,8 +178,9 @@ export async function scoutSearch({ run, ctx, log, signal }: RunHelpers): Promis
 
   await log(`Reading ${boards.length} job boards…`);
   const fromBoards = await readBoards(boards, read, log, signal);
-  // A rejection only holds for the Preferences it was judged against.
-  const criteriaKey = sha256(JSON.stringify(preferences));
+  // A rejection only holds for the Preferences and the Profile it was judged against: a new CV can turn
+  // a poor fit into a good one.
+  const criteriaKey = sha256(JSON.stringify({ preferences, profileVersion: profile.version }));
   const alerts = await readJobAlerts({ auth, model }, { criteria, criteriaKey, read }, { ctx, log, signal });
   let usage = addUsage(discovered.usage, alerts.usage);
   // And again, for the same reason: reading the alerts cost something too.
