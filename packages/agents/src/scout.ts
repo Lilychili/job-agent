@@ -93,7 +93,8 @@ export function postingForPrompt(text: string, skills: RegExp | null = null): st
 /** One line per fact, so Claude can cite them by ID without the whole Profile as JSON. */
 const factLines = (facts: ProfileFact[]) => (facts.length ? facts.map((f) => `${f.id} (${f.kind}): ${factSource(f)}`).join("\n") : "none");
 
-function promptFor(preferences: ScoutPreferences, postings: Posting[], facts: ProfileFact[]): string {
+/** `shared` is the same for every batch of a search, so the API caches it; `rest` is the batch. */
+function promptFor(preferences: ScoutPreferences, postings: Posting[], facts: ProfileFact[]): { shared: string; rest: string } {
   const skills = skillPattern(facts, [...preferences.stackMustHave, ...preferences.stackNiceToHave]);
   const items = postings.map((p, ref) =>
     [
@@ -101,12 +102,10 @@ function promptFor(preferences: ScoutPreferences, postings: Posting[], facts: Pr
       wrapUntrusted("posting", [`Company: ${p.company}`, `Title: ${p.title}`, `Location: ${p.location ?? "not stated"}`, `Work style: ${p.remote}`, ...(p.summaryOnly ? ["Source: email alert, summary only"] : []), "", postingForPrompt(p.text, skills)].join("\n")),
     ].join("\n"),
   );
-  return [
-    `<preferences>\n${JSON.stringify(preferences)}\n</preferences>`,
-    `<profile_facts>\n${factLines(facts)}\n</profile_facts>`,
-    ...items,
-    `Score all ${postings.length} postings.`,
-  ].join("\n\n");
+  return {
+    shared: [`<preferences>\n${JSON.stringify(preferences)}\n</preferences>`, `<profile_facts>\n${factLines(facts)}\n</profile_facts>`].join("\n\n"),
+    rest: [...items, `Score all ${postings.length} postings.`].join("\n\n"),
+  };
 }
 
 /** Requirements with their text cut to size and only citations of facts that exist. */
@@ -235,7 +234,7 @@ export async function scorePostings(opts: {
   log?: (m: string) => Promise<void> | void;
 }): Promise<ScoreResult> {
   const { system, version } = loadPrompt("scout");
-  const base = promptFor(opts.preferences, opts.postings, opts.facts);
+  const { shared, rest: base } = promptFor(opts.preferences, opts.postings, opts.facts);
   let prompt = base;
   let usage = NO_USAGE;
   let listCostUsd = 0;
@@ -247,6 +246,7 @@ export async function scorePostings(opts: {
       model: opts.model,
       system,
       prompt,
+      sharedPrefix: shared,
       schema: SCHEMA,
       tool: { name: "submit_scores", description: "Submit a score for every posting." },
       // Requirements add a few hundred tokens a posting.

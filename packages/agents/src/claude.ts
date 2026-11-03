@@ -19,6 +19,8 @@ interface MessagesRequest {
   model: string;
   system?: string;
   prompt: string;
+  /** The start of `prompt` that repeats across calls (preferences, Profile facts). Cached, so later calls read it at a fraction of the cost. */
+  sharedPrefix?: string;
   maxTokens: number;
   /** When set, Claude must answer by calling this tool. */
   tool?: { name: string; description: string; input_schema: object };
@@ -38,6 +40,14 @@ export class ClaudeError extends Error {
   }
 }
 
+function userContent({ prompt, sharedPrefix }: Pick<MessagesRequest, "prompt" | "sharedPrefix">) {
+  if (!sharedPrefix) return prompt;
+  return [
+    { type: "text", text: sharedPrefix, cache_control: { type: "ephemeral" } },
+    { type: "text", text: prompt },
+  ];
+}
+
 export async function createMessage(
   req: MessagesRequest,
 ): Promise<{ content: ContentBlock[]; raw: unknown[]; stopReason: string | null; usage: Usage }> {
@@ -50,8 +60,9 @@ export async function createMessage(
       body: JSON.stringify({
         model: req.model,
         max_tokens: req.maxTokens,
-        system: req.system,
-        messages: req.messages ?? [{ role: "user", content: req.prompt }],
+        // The tool and system prompt come first in the cached prefix, so one breakpoint on the system prompt covers both.
+        system: req.system && [{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }],
+        messages: req.messages ?? [{ role: "user", content: userContent(req) }],
         tools: (req.tool || req.webSearch) && [
           ...(req.webSearch ? [{ type: "web_search_20250305", name: "web_search", max_uses: req.webSearch.maxUses }] : []),
           ...(req.tool ? [req.tool] : []),

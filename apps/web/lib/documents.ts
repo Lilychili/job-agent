@@ -18,7 +18,7 @@ export async function pdfBrowser(): Promise<Browser> {
   return s.pdfBrowser;
 }
 
-export interface SavedDocument<C> {
+interface SavedDocument<C> {
   id: string;
   version: number;
   content: C;

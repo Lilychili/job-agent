@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/api";
 
-export interface DiscoveredItem {
+interface DiscoveredItem {
   id: string;
   name: string;
   reason: string;

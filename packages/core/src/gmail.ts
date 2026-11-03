@@ -4,7 +4,7 @@
 import type pg from "pg";
 import { ConfigError, decryptSecret, encryptionKeyFromEnv, encryptSecret } from "./secrets";
 
-export const GMAIL_REDIRECT_URI = "http://127.0.0.1:3000/api/gmail/callback";
+const GMAIL_REDIRECT_URI = "http://127.0.0.1:3000/api/gmail/callback";
 const SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";

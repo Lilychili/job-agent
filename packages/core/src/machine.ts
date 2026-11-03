@@ -208,3 +208,8 @@ export function columnFor(status: Status, previous?: Status | null): ColumnId | 
       return status;
   }
 }
+
+/** Runs that have not finished: one waiting its turn, one working, one paused on a Blocker. */
+export const ACTIVE_RUN_STATUSES = ["queued", "running", "paused"] as const;
+/** Runs a worker is, or is about to be, busy with. A paused run is waiting on the owner. */
+export const BUSY_RUN_STATUSES = ["queued", "running"] as const;

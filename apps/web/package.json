@@ -16,7 +16,6 @@
     "@jobagent/queue": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "next": "^16.4.3",
-    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.7.284",
     "pg": "^8.23.1",
     "playwright": "^1.64.1",

@@ -13,6 +13,8 @@ import { CraftModal } from "./CraftModal";
 
 type Conn = "connecting" | "live" | "offline";
 
+const REFETCH_WINDOW_MS = 300;
+
 export function Board({ initial, setup }: { initial: BoardData; setup: { done: number; total: number } | null }) {
   const [data, setData] = useState(initial);
   const [conn, setConn] = useState<Conn>("connecting");
@@ -27,10 +29,14 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
     if (res.ok) setData(res.data);
   }, []);
 
-  // Coalesce bursts of events (a transition can emit several) into one refetch.
+  // At most one refetch per window, however many events arrive: a running search logs a line every few
+  // hundred milliseconds, and each line used to rebuild the whole board.
   const scheduleRefetch = useCallback(() => {
-    if (refetchTimer.current) clearTimeout(refetchTimer.current);
-    refetchTimer.current = setTimeout(() => void refetch(), 80);
+    if (refetchTimer.current) return;
+    refetchTimer.current = setTimeout(() => {
+      refetchTimer.current = null;
+      void refetch();
+    }, REFETCH_WINDOW_MS);
   }, [refetch]);
 
   useAppEvents({

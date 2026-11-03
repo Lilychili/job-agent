@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { remotePreference, type ats, type Contact, type FactKind, type ProfileFact, type preferences } from "@jobagent/db";
 
-export const FACT_KINDS = ["role", "skill", "education", "achievement", "cert", "language"] as const satisfies readonly FactKind[];
+const FACT_KINDS = ["role", "skill", "education", "achievement", "cert", "language"] as const satisfies readonly FactKind[];
 
 export class ValidationError extends Error {
   constructor(message: string) {
@@ -12,7 +12,7 @@ export class ValidationError extends Error {
 }
 
 /** Fact ids are stable so Pen can cite them: assigned once, kept across edits. */
-export function newFactId(kind: FactKind): string {
+function newFactId(kind: FactKind): string {
   return `f-${kind}-${randomUUID().slice(0, 8)}`;
 }
 

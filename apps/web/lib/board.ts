@@ -1,7 +1,7 @@
 import "server-only";
-import { and, desc, eq, inArray, isNotNull, isNull, ne, notInArray } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, isNotNull, isNull, ne, notInArray } from "drizzle-orm";
 import { requirementFacts } from "@jobagent/agents/citations";
-import { columnFor, ownerActions, RULES, type Action, type ColumnId, type Status } from "@jobagent/core";
+import { ACTIVE_RUN_STATUSES, columnFor, ownerActions, RULES, type Action, type ColumnId, type Status } from "@jobagent/core";
 import { agentRun, application, applicationEvent, blocker, document, job, profile, settings } from "@jobagent/db";
 import { getDb } from "./server";
 
@@ -45,10 +45,25 @@ function describeSearch(run: { status: string; error: string | null; output: Rec
   return { ok: true, message: `Last search added ${added} ${added === 1 ? "job" : "jobs"}.` };
 }
 
+// The card never shows the posting text, which is most of a job row.
+const { rawPosting: _rawPosting, ...jobColumns } = getTableColumns(job);
+
+/** Groups rows by application, keeping the order they came in. */
+function byApplication<T extends { applicationId: string | null }>(rows: T[]): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    if (!row.applicationId) continue;
+    const group = groups.get(row.applicationId);
+    if (group) group.push(row);
+    else groups.set(row.applicationId, [row]);
+  }
+  return groups;
+}
+
 export async function loadBoard(): Promise<BoardData> {
   const db = getDb();
   const rows = await db
-    .select({ app: application, job })
+    .select({ app: application, job: jobColumns })
     .from(application)
     .innerJoin(job, eq(job.id, application.jobId))
     .where(notInArray(application.status, ["archived", "withdrawn"]))
@@ -60,7 +75,7 @@ export async function loadBoard(): Promise<BoardData> {
       ? db
           .select()
           .from(agentRun)
-          .where(and(inArray(agentRun.applicationId, ids), inArray(agentRun.status, ["queued", "running", "paused"])))
+          .where(and(inArray(agentRun.applicationId, ids), inArray(agentRun.status, ACTIVE_RUN_STATUSES)))
       : [],
     ids.length
       ? db.select().from(blocker).where(and(inArray(blocker.applicationId, ids), isNull(blocker.answeredAt)))
@@ -86,14 +101,20 @@ export async function loadBoard(): Promise<BoardData> {
     db.select({ facts: profile.facts }).from(profile).limit(1),
   ]);
   const facts = new Map((owner?.facts ?? []).map((f) => [f.id, f]));
+  const runsByApp = byApplication(runs);
+  const blockersByApp = byApplication(openBlockers);
+  // Newest first, so the first event for an application is its latest move into crafting.
+  const craftedFromByApp = new Map<string, string | null>();
+  for (const e of intoCrafting) if (!craftedFromByApp.has(e.applicationId)) craftedFromByApp.set(e.applicationId, e.from);
+  const documentsByApp = new Set(withDocuments.map((d) => d.applicationId));
 
   const cards: BoardCard[] = [];
   for (const { app, job: j } of rows) {
     const status = app.status as Status;
-    const prev = intoCrafting.find((e) => e.applicationId === app.id)?.from as Status | undefined;
+    const prev = craftedFromByApp.get(app.id) as Status | undefined;
     const column = columnFor(status, prev);
     if (!column) continue;
-    const run = runs.find((r) => r.applicationId === app.id);
+    const run = runsByApp.get(app.id)?.[0];
     const lastLog = run?.logs.at(-1)?.message ?? null;
     cards.push({
       id: app.id,
@@ -114,10 +135,8 @@ export async function loadBoard(): Promise<BoardData> {
       working: !!run && run.status !== "paused",
       runLog: lastLog,
       actions: ownerActions(status).map((a) => ({ action: a, label: RULES[a].label })),
-      blockers: openBlockers
-        .filter((b) => b.applicationId === app.id)
-        .map((b) => ({ id: b.id, question: b.question, label: b.fieldContext.label })),
-      hasDocuments: withDocuments.some((d) => d.applicationId === app.id),
+      blockers: (blockersByApp.get(app.id) ?? []).map((b) => ({ id: b.id, question: b.question, label: b.fieldContext.label })),
+      hasDocuments: documentsByApp.has(app.id),
       updatedAt: app.updatedAt.toISOString(),
     });
   }
