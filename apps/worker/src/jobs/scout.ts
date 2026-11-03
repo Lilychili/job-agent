@@ -3,14 +3,19 @@
 import { boardKey, type Board, type BoardReader, type Posting } from "@jobagent/ats";
 import { addUsage, discoverCompanies, NO_USAGE, scorePostings, type Auth, type ScoutPreferences } from "@jobagent/agents";
 import { addFoundJobs, addRejectedPostings, hardFail, listDiscoveredCompanies, MIN_MATCH_SCORE, sha256, unknownPostings, type HardCriteria } from "@jobagent/core";
+import type { ProfileFact } from "@jobagent/db";
 import { claudeFromSettings, saveUsage } from "../claude";
 import { readJobAlerts } from "./alerts";
 import { boardReader, findAndSaveBoard, PARALLEL_LOOKUPS, RECHECK_AFTER_MS } from "./boards";
 import type { Outcome, RunHelpers } from "../runner";
 import { errorText, forEachParallel } from "../util";
 
-// A search has five minutes. What doesn't fit this time is picked up by the next one.
-const MAX_SCORED_PER_SEARCH = 40;
+// A search has five minutes, so it scores 40 postings. Each source has a share of those, so alert
+// summaries (a title and a company) can't crowd out full postings, the only ones whose requirements a
+// CV can be fitted to. A share a source can't fill goes to the others; what doesn't fit this time is
+// picked up by the next search.
+const SCORING_SHARES = { board: 20, indeed_alert: 10, linkedin_alert: 10 } as const;
+const MAX_SCORED_PER_SEARCH = Object.values(SCORING_SHARES).reduce((a, b) => a + b, 0);
 const BATCH_SIZE = 10;
 const PARALLEL_BATCHES = 3;
 // Each search asks Claude for this many new companies; the ones with a board join the next searches too.
@@ -31,6 +36,15 @@ async function loadCriteria(ctx: RunHelpers["ctx"]): Promise<Criteria> {
   const criteria = rows[0];
   if (!criteria) throw new Error("Fill in Profile → Looking for first.");
   return criteria;
+}
+
+/**
+ * Requirements are matched against the confirmed Profile only, and remember its version so Pen can
+ * match them again after a change. Before the Profile is confirmed, Search still scores.
+ */
+async function confirmedProfile(ctx: RunHelpers["ctx"]): Promise<{ facts: ProfileFact[]; version: number | null }> {
+  const { rows } = await ctx.pool.query<{ facts: ProfileFact[]; version: number }>(`select facts, version from profile where confirmed limit 1`);
+  return rows[0] ?? { facts: [], version: null };
 }
 
 /**
@@ -110,6 +124,21 @@ function rank(postings: Posting[], { roles, stackMustHave, stackNiceToHave }: Sc
   return postings.map((p) => ({ p, s: score(p) })).sort((a, b) => b.s - a.s).map(({ p }) => p);
 }
 
+/** The ranked postings to score this time: each source's best up to its share, then the best of the rest. */
+function pickForScoring(ranked: Posting[]): Posting[] {
+  const used: Record<keyof typeof SCORING_SHARES, number> = { board: 0, indeed_alert: 0, linkedin_alert: 0 };
+  const within = new Set<Posting>();
+  for (const p of ranked) {
+    const source = p.source ?? "board";
+    if (used[source] >= SCORING_SHARES[source]) continue;
+    used[source]++;
+    within.add(p);
+  }
+  const spare = ranked.filter((p) => !within.has(p)).slice(0, MAX_SCORED_PER_SEARCH - within.size);
+  const picked = new Set([...within, ...spare]);
+  return ranked.filter((p) => picked.has(p));
+}
+
 export async function scoutSearch({ run, ctx, log, signal }: RunHelpers): Promise<Outcome> {
   const criteria = await loadCriteria(ctx);
   const { auth, model } = await claudeFromSettings(ctx);
@@ -123,6 +152,7 @@ export async function scoutSearch({ run, ctx, log, signal }: RunHelpers): Promis
     stackNiceToHave: criteria.stackNiceToHave,
     exclusions: criteria.exclusions,
   };
+  const profile = await confirmedProfile(ctx);
   const read = boardReader(signal);
 
   const discovered = await discoverBoards(preferences, read, { ctx, log, signal }, { auth, model });
@@ -145,7 +175,7 @@ export async function scoutSearch({ run, ctx, log, signal }: RunHelpers): Promis
   // Ruling out an alert job cost a lookup, so it's remembered. A board's jobs are checked for free next time.
   await addRejectedPostings(ctx.pool, alerts.postings.filter((p) => hardFail(p, criteria)).map((p) => ({ ...p, matchScore: 0 })), criteriaKey);
   const fresh = await unknownPostings(ctx.pool, passing, criteriaKey);
-  const queue = rank(fresh, criteria).slice(0, MAX_SCORED_PER_SEARCH);
+  const queue = pickForScoring(rank(fresh, criteria));
   const left = fresh.length - queue.length;
   await log(`${fetched.length} open, ${fetched.length - passing.length} ruled out by your criteria, ${passing.length - fresh.length} already known. Scoring ${queue.length}${left ? ` (${left} left for the next search)` : ""}…`);
 
@@ -161,7 +191,7 @@ export async function scoutSearch({ run, ctx, log, signal }: RunHelpers): Promis
 
   await forEachParallel(batches, PARALLEL_BATCHES, async (postings) => {
     try {
-      const result = await scorePostings({ auth, model, preferences, postings, signal, log });
+      const result = await scorePostings({ auth, model, preferences, facts: profile.facts, postings, signal, log });
       usage = addUsage(usage, result.usage);
       listCostUsd += result.listCostUsd;
       promptVersion = result.promptVersion;
@@ -172,7 +202,7 @@ export async function scoutSearch({ run, ctx, log, signal }: RunHelpers): Promis
       // What didn't make it never reaches the board, but is remembered so the next search skips it.
       await addRejectedPostings(ctx.pool, result.jobs.filter((j) => !keep.includes(j)), criteriaKey);
       belowCutoff += result.jobs.filter((j) => j.matchScore < MIN_MATCH_SCORE).length;
-      inserted += await addFoundJobs(ctx.pool, keep, run.id);
+      inserted += await addFoundJobs(ctx.pool, keep.map((j) => ({ ...j, requirementsProfileVersion: profile.version })), run.id);
       await saveUsage(ctx, run.id, { model, promptVersion, usage });
       await log(`Scored ${scored} of ${queue.length}, added ${inserted}.`);
     } catch (err) {

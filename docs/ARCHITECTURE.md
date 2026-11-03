@@ -46,9 +46,9 @@ apps/
 packages/
   db/                       # schema, migrations, typed queries
   core/                     # state machine, transition(), guards
-  agents/                   # Claude client wrapper, usage logging, structured-output schemas
+  agents/                   # Claude client wrapper, usage logging, structured-output schemas;
+                            # Pen's HTML templates, render-to-PDF, metadata strip, document saving
   ats/                      # Greenhouse, Lever, Ashby clients (pure HTTP, no LLM)
-  documents/                # HTML templates, render-to-PDF, metadata strip, hashing
   forms/                    # Playwright form-filling adapters per ATS
   security/                 # untrusted-content wrapping, secret encryption
 agents/

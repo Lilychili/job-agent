@@ -1,6 +1,6 @@
 // Jobs the owner adds by hand. Same dedupe and same starting point as the ones Scout finds.
 import type pg from "pg";
-import { application, applicationEvent, job, jobRemote, notify, withTx } from "@jobagent/db";
+import { application, applicationEvent, job, jobRemote, notify, withTx, type JobRequirement } from "@jobagent/db";
 import { atsFromUrl, canonicalManualUrl, normalizeCompany, normalizeTitle } from "./normalize";
 import { str, ValidationError } from "./profile";
 
@@ -59,6 +59,9 @@ export interface FoundJob {
   text: string;
   matchScore: number;
   matchReasons: { met: string[]; missed: string[] };
+  requirements?: JobRequirement[];
+  /** The Profile version the requirements were matched against; null before the Profile is confirmed. */
+  requirementsProfileVersion?: number | null;
   source?: "indeed_alert" | "linkedin_alert";
   companyUrl?: string | null;
 }
@@ -149,6 +152,8 @@ export async function addFoundJobs(pool: pg.Pool, jobs: FoundJob[], agentRunId: 
         salary: j.salary,
         matchScore: j.matchScore,
         matchReasons: j.matchReasons,
+        requirements: j.requirements ?? null,
+        requirementsProfileVersion: j.requirementsProfileVersion ?? null,
         source: j.source ?? null,
         companyUrl: j.companyUrl ?? null,
         ...keys,

@@ -7,7 +7,7 @@ if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 
 const config: NextConfig = {
   transpilePackages: ["@jobagent/core", "@jobagent/db", "@jobagent/queue", "@jobagent/agents"],
-  serverExternalPackages: ["pg", "pg-boss", "unpdf", "mammoth"],
+  serverExternalPackages: ["pg", "pg-boss", "unpdf", "mammoth", "playwright", "playwright-core", "pdf-lib"],
   // No login, so a click is authority: a page that frames this app must not be able to steal one.
   headers: () => [
     {

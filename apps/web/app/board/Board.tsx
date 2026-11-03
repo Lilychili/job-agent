@@ -9,6 +9,7 @@ import { useAppEvents } from "@/lib/useAppEvents";
 import { COLUMNS } from "@jobagent/core/machine";
 import type { BoardCard, BoardData } from "@/lib/board";
 import { AddJobDialog } from "./AddJobDialog";
+import { CraftModal } from "./CraftModal";
 
 type Conn = "connecting" | "live" | "offline";
 
@@ -17,6 +18,7 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
   const [conn, setConn] = useState<Conn>("connecting");
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
+  const [crafting, setCrafting] = useState<string | null>(null); // the card whose Craft modal is open
   const [now, setNow] = useState(() => Date.now());
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -58,7 +60,7 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
       const res = await api(url, "POST", body);
       if (!res.ok) setToast(res.error);
       await refetch();
-      return res.ok;
+      return res;
     } finally {
       setBusy((s) => {
         const n = new Set(s);
@@ -70,6 +72,8 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
 
   const workerAlive = data.workerLastSeenAt && now - Date.parse(data.workerLastSeenAt) < 90_000;
   const byColumn = (id: string) => data.cards.filter((c) => c.column === id);
+  const craftCard = data.cards.find((c) => c.id === crafting);
+  const transition = (card: BoardCard, action: string) => post(card.id, `/api/applications/${card.id}/transition`, { action });
 
   return (
     <div className="shell">
@@ -115,7 +119,17 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
               </h2>
               <div className="cards">
                 {cards.map((c) => (
-                  <Card key={c.id} card={c} busy={busy} post={post} onChanged={refetch} />
+                  <Card
+                    key={c.id}
+                    card={c}
+                    busy={busy}
+                    onAction={async (action) => {
+                      // Craft and Regenerate open the modal at once; it shows Claude's progress.
+                      if ((await transition(c, action)).ok && (action === "craft" || action === "regenerate")) setCrafting(c.id);
+                    }}
+                    onOpen={() => setCrafting(c.id)}
+                    onChanged={refetch}
+                  />
                 ))}
                 {cards.length === 0 && <p className="empty">—</p>}
               </div>
@@ -123,6 +137,16 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
           );
         })}
       </main>
+
+      {craftCard && (
+        <CraftModal
+          key={craftCard.id}
+          card={craftCard}
+          onClose={() => setCrafting(null)}
+          onChanged={refetch}
+          regenerate={() => transition(craftCard, "regenerate")}
+        />
+      )}
 
       {toast && (
         <div className="toast" role="status">
@@ -136,15 +160,18 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
 function Card({
   card,
   busy,
-  post,
+  onAction,
+  onOpen,
   onChanged,
 }: {
   card: BoardCard;
   busy: Set<string>;
-  post: (key: string, url: string, body?: unknown) => Promise<boolean>;
+  onAction: (action: string) => Promise<void>;
+  onOpen: () => void;
   onChanged: () => Promise<void>;
 }) {
   const blocked = card.blockers.length > 0;
+  const drafted = card.status === "drafted";
   return (
     <article className={`card${card.working ? " working" : ""}${blocked ? " blocked" : ""}`}>
       <div className="card-head">
@@ -156,7 +183,14 @@ function Card({
             </a>
           </h3>
         </div>
-        {card.matchScore !== null && <span className={`score s${Math.floor(card.matchScore / 25)}`}>{card.matchScore}</span>}
+        <div className="card-pills">
+          {card.matchScore !== null && <span className={`score s${Math.floor(card.matchScore / 25)}`}>{card.matchScore}</span>}
+          {card.hasDocuments && !drafted && !card.working && (
+            <button type="button" className="pdf-pill" onClick={onOpen} aria-label={`Open the CV and cover letter for ${card.company}`}>
+              PDF
+            </button>
+          )}
+        </div>
       </div>
 
       <p className="meta">
@@ -189,8 +223,23 @@ function Card({
           ))}
         </ul>
       )}
+      {card.requirements && card.requirements.length > 0 && (
+        <details className="requirements">
+          <summary>
+            Meets {card.requirements.filter((r) => r.met).length} of {card.requirements.length} core requirements
+          </summary>
+          <ul className="reasons">
+            {card.requirements.map((r, i) => (
+              <li key={i} className={r.met ? "met" : "missed"}>
+                {r.text}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {card.status === "awaiting_submit" && <p className="badge ready">Ready to submit — review the form, submit, then mark applied</p>}
+      {drafted && <p className="badge ready">Draft ready — review it, then Craft</p>}
       {card.working && (
         <p className="progress">
           <Spinner /> {card.runLog ?? "Queued…"}
@@ -204,14 +253,19 @@ function Card({
         </BlockerAnswerForm>
       ))}
 
-      {card.actions.length > 0 && (
+      {(card.actions.length > 0 || drafted) && (
         <div className="actions">
+          {drafted && (
+            <button className="btn primary" onClick={onOpen}>
+              Review draft
+            </button>
+          )}
           {card.actions.map(({ action, label }) => (
             <button
               key={action}
               className={`btn ${action === "dismiss" || action === "withdraw" ? "ghost" : ""}`}
               disabled={busy.has(card.id)}
-              onClick={() => void post(card.id, `/api/applications/${card.id}/transition`, { action })}
+              onClick={() => void onAction(action)}
             >
               {label}
             </button>

@@ -1,72 +1,60 @@
-// M0 STUB — replaced by the real Pen (Claude + HTML template + Playwright PDF) in M3.
-// It already writes versioned, hashed Document rows so Approve and Apply's hash check work.
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { and, eq, max } from "drizzle-orm";
-import { resolveDataPath, sha256, transition } from "@jobagent/core";
-import { createDb, document, profile } from "@jobagent/db";
-import { sleep, type Outcome, type RunHelpers } from "../runner";
-
-/** A minimal valid one-page PDF with a line of text. */
-function placeholderPdf(text: string): Buffer {
-  const safe = text.replace(/[()\\]/g, "");
-  const stream = `BT /F1 14 Tf 72 720 Td (${safe}) Tj ET`;
-  const objs = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-  ];
-  let out = "%PDF-1.4\n";
-  const offsets: number[] = [];
-  objs.forEach((o, i) => {
-    offsets.push(out.length);
-    out += `${i + 1} 0 obj\n${o}\nendobj\n`;
-  });
-  const xref = out.length;
-  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
-  for (const off of offsets) out += `${String(off).padStart(10, "0")} 00000 n \n`;
-  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return Buffer.from(out, "latin1");
-}
+// Craft: Claude drafts a CV and cover letter from confirmed facts, code checks every citation, then the
+// documents are printed to PDF, stripped of metadata, hashed and saved as a new version. The card then
+// waits in Drafted until the owner keeps the draft in the Craft modal. Pen writes from the posting itself;
+// the job's requirements are only shown to the owner, so ones never read, or matched against an older
+// Profile, are read again first and the card and modal count a fact the owner just added.
+import { eq } from "drizzle-orm";
+import { addUsage, craftDocuments, NO_USAGE, printDocuments, readRequirements, withDocuments } from "@jobagent/agents";
+import { transitionInTx } from "@jobagent/core";
+import { answerBank, application, createDb, job, profile } from "@jobagent/db";
+import { claudeFromSettings, saveUsage } from "../claude";
+import type { Outcome, RunHelpers } from "../runner";
+import { errorText } from "../util";
 
 export async function penCraft({ ctx, run, log, signal }: RunHelpers): Promise<Outcome> {
   const appId = run.applicationId!;
   const db = createDb(ctx.pool);
   const [p] = await db.select().from(profile).limit(1);
   if (!p?.confirmed) throw new Error("Profile is not confirmed");
+  const [target] = await db
+    .select({ id: job.id, company: job.company, title: job.title, posting: job.rawPosting, requirements: job.requirements, matchedVersion: job.requirementsProfileVersion })
+    .from(application)
+    .innerJoin(job, eq(job.id, application.jobId))
+    .where(eq(application.id, appId));
+  if (!target) throw new Error("This application's job is missing.");
+  const [why] = await db.select({ answer: answerBank.answer }).from(answerBank).where(eq(answerBank.questionKey, "why_this_company"));
+  const { auth, model } = await claudeFromSettings(ctx);
 
-  await log("Drafting CV and cover letter (stub)");
-  await sleep(2000, signal);
-
-  const [{ v } = { v: 0 }] = await db
-    .select({ v: max(document.version) })
-    .from(document)
-    .where(and(eq(document.applicationId, appId), eq(document.kind, "cv")));
-  const version = (v ?? 0) + 1;
-  const factIds = p.facts.map((f) => f.id);
-
-  for (const kind of ["cv", "cover_letter"] as const) {
-    const pdf = placeholderPdf(`${kind === "cv" ? "CV" : "Cover letter"} v${version} - placeholder (M0)`);
-    const rel = path.join("documents", appId, `${kind}-v${version}.pdf`);
-    const full = resolveDataPath(ctx, rel);
-    await mkdir(path.dirname(full), { recursive: true });
-    await writeFile(full, pdf);
-    await db.insert(document).values({
-      applicationId: appId,
-      kind,
-      version,
-      htmlSource: `<p>${kind} placeholder v${version}</p>`,
-      pdfPath: rel,
-      sha256: sha256(pdf),
-      factIds,
-      profileVersion: p.version,
-      agentRunId: run.id,
-    });
+  let usage = NO_USAGE;
+  let readVersion: string | null = null;
+  if (!target.requirements || target.matchedVersion !== p.version) {
+    await log("Reading what the job requires…");
+    try {
+      const read = await readRequirements({ auth, model, facts: p.facts, job: target, signal });
+      usage = read.usage;
+      readVersion = read.promptVersion;
+      await db.update(job).set({ requirements: read.requirements, requirementsProfileVersion: p.version }).where(eq(job.id, target.id));
+    } catch (err) {
+      if (signal.aborted) throw err;
+      // Only the owner's view needs them, so the draft goes on; the next craft tries again.
+      await log(`Couldn't read the job's requirements: ${errorText(err)}`);
+    }
   }
-  await log(`Saved CV and cover letter v${version}`);
 
-  await transition(ctx, appId, "craftSucceeded", { actor: "system", runId: run.id });
+  await log(`Writing a CV and cover letter for ${target.company}…`);
+  const { draft, promptVersion: penVersion, usage: penUsage } = await craftDocuments({ auth, model, facts: p.facts, job: target, whyTemplate: why?.answer.trim() || null, signal, log });
+  // A run that used Search's prompt too records both versions.
+  const promptVersion = [penVersion, readVersion].filter(Boolean).join("+");
+  await saveUsage(ctx, run.id, { model, promptVersion, usage: addUsage(usage, penUsage) });
+
+  await log("Printing the PDFs…");
+  const documents = await printDocuments(draft, p);
+  // The status change goes first: it locks the card, and refuses if it was dismissed meanwhile, so
+  // neither document is saved.
+  const version = await withDocuments(ctx, async (tx, client, save) => {
+    await transitionInTx(ctx, tx, client, appId, "craftSucceeded", { actor: "system", runId: run.id });
+    return save({ applicationId: appId, documents, profileVersion: p.version, agentRunId: run.id });
+  });
+  await log(`Saved the draft as version ${version}`);
   return { kind: "succeeded" };
 }

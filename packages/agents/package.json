@@ -6,7 +6,8 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./citations": "./src/citations.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -16,7 +17,10 @@
     "@jobagent/ats": "workspace:*",
     "@jobagent/core": "workspace:*",
     "@jobagent/db": "workspace:*",
+    "drizzle-orm": "^0.45.4",
     "mammoth": "^1.13.0",
+    "pdf-lib": "^1.17.1",
+    "playwright": "^1.64.1",
     "unpdf": "^2.1.0"
   },
   "devDependencies": {

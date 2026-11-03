@@ -1,7 +1,8 @@
 import "server-only";
-import { and, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, ne, notInArray } from "drizzle-orm";
+import { requirementFacts } from "@jobagent/agents/citations";
 import { columnFor, ownerActions, RULES, type Action, type ColumnId, type Status } from "@jobagent/core";
-import { agentRun, application, applicationEvent, blocker, job, settings } from "@jobagent/db";
+import { agentRun, application, applicationEvent, blocker, document, job, profile, settings } from "@jobagent/db";
 import { getDb } from "./server";
 
 export interface BoardCard {
@@ -18,11 +19,15 @@ export interface BoardCard {
   alertSite: "Indeed" | "LinkedIn" | null;
   matchScore: number | null;
   matchReasons: { met: string[]; missed: string[] } | null;
+  /** The job's core requirements, and whether a Profile fact meets each. Null for jobs found before Search read them. */
+  requirements: { text: string; met: boolean }[] | null;
   lastError: string | null;
   working: boolean;
   runLog: string | null;
   actions: { action: Action; label: string }[];
   blockers: { id: string; question: string; label: string }[];
+  /** Saved documents exist, so the card shows a PDF pill. */
+  hasDocuments: boolean;
   updatedAt: string;
 }
 
@@ -50,7 +55,7 @@ export async function loadBoard(): Promise<BoardData> {
     .orderBy(desc(job.matchScore), desc(application.updatedAt));
 
   const ids = rows.map((r) => r.app.id);
-  const [runs, openBlockers, intoCrafting, [latestSearch], [cfg]] = await Promise.all([
+  const [runs, openBlockers, intoCrafting, withDocuments, [latestSearch], [cfg], [owner]] = await Promise.all([
     ids.length
       ? db
           .select()
@@ -64,9 +69,12 @@ export async function loadBoard(): Promise<BoardData> {
       ? db
           .select({ applicationId: applicationEvent.applicationId, from: applicationEvent.fromStatus, at: applicationEvent.at })
           .from(applicationEvent)
-          .where(and(inArray(applicationEvent.applicationId, ids), eq(applicationEvent.toStatus, "crafting")))
+          // Asking for a new draft from a draft says nothing about which column the card belongs in.
+          .where(and(inArray(applicationEvent.applicationId, ids), eq(applicationEvent.toStatus, "crafting"), ne(applicationEvent.fromStatus, "drafted")))
           .orderBy(desc(applicationEvent.at))
       : [],
+    // Only documents the Craft modal can show: ones saved before M3 have no content.
+    ids.length ? db.selectDistinct({ applicationId: document.applicationId }).from(document).where(and(inArray(document.applicationId, ids), isNotNull(document.content))) : [],
     db
       .select({ status: agentRun.status, error: agentRun.error, output: agentRun.output })
       .from(agentRun)
@@ -74,7 +82,10 @@ export async function loadBoard(): Promise<BoardData> {
       .orderBy(desc(agentRun.createdAt))
       .limit(1),
     db.select({ workerLastSeenAt: settings.workerLastSeenAt }).from(settings).limit(1),
+    // A requirement counts as met only by facts the Profile still has, as in the Craft modal.
+    db.select({ facts: profile.facts }).from(profile).limit(1),
   ]);
+  const facts = new Map((owner?.facts ?? []).map((f) => [f.id, f]));
 
   const cards: BoardCard[] = [];
   for (const { app, job: j } of rows) {
@@ -98,6 +109,7 @@ export async function loadBoard(): Promise<BoardData> {
       alertSite: j.source === "indeed_alert" ? "Indeed" : j.source === "linkedin_alert" ? "LinkedIn" : null,
       matchScore: j.matchScore,
       matchReasons: j.matchReasons ? { met: j.matchReasons.met, missed: j.matchReasons.missed } : null,
+      requirements: j.requirements?.map((r) => ({ text: r.text, met: requirementFacts(r, facts).met.length > 0 })) ?? null,
       lastError: app.lastError,
       working: !!run && run.status !== "paused",
       runLog: lastLog,
@@ -105,6 +117,7 @@ export async function loadBoard(): Promise<BoardData> {
       blockers: openBlockers
         .filter((b) => b.applicationId === app.id)
         .map((b) => ({ id: b.id, question: b.question, label: b.fieldContext.label })),
+      hasDocuments: withDocuments.some((d) => d.applicationId === app.id),
       updatedAt: app.updatedAt.toISOString(),
     });
   }
