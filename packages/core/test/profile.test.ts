@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseContact, parseFacts, parseModel, parsePreferences, ValidationError } from "../src/profile";
+import { keepFactIds, parseContact, parseFacts, parseModel, parsePreferences, ValidationError } from "../src/profile";
 
 describe("parseContact", () => {
   it("trims, normalizes links and drops empty optionals", () => {
@@ -81,5 +81,30 @@ describe("parseModel", () => {
   it("refuses anything that could be read as a command-line flag", () => {
     expect(() => parseModel("--dangerously-skip-permissions")).toThrow(/valid model/);
     expect(() => parseModel("a b")).toThrow(/valid model/);
+  });
+});
+
+describe("keepFactIds", () => {
+  const old = [
+    { id: "r-old", kind: "role" as const, text: "Software Engineer", org: "Sage" },
+    { id: "a-old", kind: "achievement" as const, text: "Built AI receipt capture.", org: "Sage" },
+    { id: "s-old", kind: "skill" as const, text: "TypeScript" },
+  ];
+
+  it("gives a re-read fact the ID it had, ignoring case and spacing", () => {
+    const read = [
+      { id: "r-new", kind: "role" as const, text: "software  engineer", org: "SAGE" },
+      { id: "a-new", kind: "achievement" as const, text: "Built AI receipt capture, live in production.", org: "Sage" },
+      { id: "s-new", kind: "skill" as const, text: "TypeScript" },
+    ];
+    expect(keepFactIds(read, old).map((f) => f.id)).toEqual(["r-old", "a-new", "s-old"]);
+  });
+
+  it("leaves facts that already carry a saved ID alone, and never gives one ID twice", () => {
+    const edited = [
+      { id: "s-old", kind: "skill" as const, text: "TypeScript" },
+      { id: "s-new", kind: "skill" as const, text: "TypeScript" },
+    ];
+    expect(keepFactIds(edited, old).map((f) => f.id)).toEqual(["s-old", "s-new"]);
   });
 });

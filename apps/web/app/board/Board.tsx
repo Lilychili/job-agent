@@ -10,6 +10,8 @@ import { COLUMNS } from "@jobagent/core/machine";
 import type { BoardCard, BoardData } from "@/lib/board";
 import { AddJobDialog } from "./AddJobDialog";
 import { CraftModal } from "./CraftModal";
+import { PdfPreview } from "./PdfPreview";
+import { PrefillReview } from "./PrefillReview";
 
 type Conn = "connecting" | "live" | "offline";
 
@@ -21,6 +23,8 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
   const [crafting, setCrafting] = useState<string | null>(null); // the card whose Craft modal is open
+  const [previewing, setPreviewing] = useState<{ documentId: string; title: string } | null>(null);
+  const [reviewing, setReviewing] = useState<string | null>(null); // the card whose prefill review is open
   const [now, setNow] = useState(() => Date.now());
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -79,6 +83,7 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
   const workerAlive = data.workerLastSeenAt && now - Date.parse(data.workerLastSeenAt) < 90_000;
   const byColumn = (id: string) => data.cards.filter((c) => c.column === id);
   const craftCard = data.cards.find((c) => c.id === crafting);
+  const reviewCard = data.cards.find((c) => c.id === reviewing);
   const transition = (card: BoardCard, action: string) => post(card.id, `/api/applications/${card.id}/transition`, { action });
 
   return (
@@ -95,6 +100,11 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
           <StatusDot ok={conn === "live"} label={conn === "live" ? "Live" : conn === "connecting" ? "Connecting" : "Reconnecting"} />
           <StatusDot ok={!!workerAlive} label={workerAlive ? "Worker running" : "Worker offline"} />
           {!data.searchRunning && data.lastSearch && <span className={data.lastSearch.ok ? "hint" : "error"}>{data.lastSearch.message}</span>}
+          {data.rescoring && (
+            <span className="hint">
+              <Spinner /> Scoring your cards again against your updated Profile…
+            </span>
+          )}
         </div>
         <div className="actions">
           <AddJobDialog onAdded={refetch} />
@@ -130,10 +140,13 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
                     card={c}
                     busy={busy}
                     onAction={async (action) => {
-                      // Craft and Regenerate open the modal at once; it shows Claude's progress.
-                      if ((await transition(c, action)).ok && (action === "craft" || action === "regenerate")) setCrafting(c.id);
+                      // Craft opens the modal at once; it shows Claude's progress.
+                      if ((await transition(c, action)).ok && action === "craft") setCrafting(c.id);
                     }}
                     onOpen={() => setCrafting(c.id)}
+                    onPreview={(documentId, title) => setPreviewing({ documentId, title })}
+                    onReview={() => setReviewing(c.id)}
+                    onShowForm={() => void post(c.id, `/api/applications/${c.id}/form`)}
                     onChanged={refetch}
                   />
                 ))}
@@ -151,8 +164,14 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
           onClose={() => setCrafting(null)}
           onChanged={refetch}
           regenerate={() => transition(craftCard, "regenerate")}
+          approve={() => transition(craftCard, "approve")}
         />
       )}
+
+      {reviewCard && (
+        <PrefillReview key={reviewCard.id} card={reviewCard} onClose={() => setReviewing(null)} onShowForm={() => post(reviewCard.id, `/api/applications/${reviewCard.id}/form`)} />
+      )}
+      {previewing && <PdfPreview key={previewing.documentId} {...previewing} onClose={() => setPreviewing(null)} />}
 
       {toast && (
         <div className="toast" role="status">
@@ -168,16 +187,25 @@ function Card({
   busy,
   onAction,
   onOpen,
+  onPreview,
+  onReview,
+  onShowForm,
   onChanged,
 }: {
   card: BoardCard;
   busy: Set<string>;
   onAction: (action: string) => Promise<void>;
   onOpen: () => void;
+  onPreview: (documentId: string, title: string) => void;
+  onReview: () => void;
+  onShowForm: () => void;
   onChanged: () => Promise<void>;
 }) {
   const blocked = card.blockers.length > 0;
   const drafted = card.status === "drafted";
+  // A draft, or Crafted documents not yet approved: both are reviewed and approved in the Craft modal.
+  const reviewable = drafted || (card.status === "crafted" && card.hasDocuments);
+  const docs = card.approvedDocuments;
   return (
     <article className={`card${card.working ? " working" : ""}${blocked ? " blocked" : ""}`}>
       <div className="card-head">
@@ -191,13 +219,26 @@ function Card({
         </div>
         <div className="card-pills">
           {card.matchScore !== null && <span className={`score s${Math.floor(card.matchScore / 25)}`}>{card.matchScore}</span>}
-          {card.hasDocuments && !drafted && !card.working && (
-            <button type="button" className="pdf-pill" onClick={onOpen} aria-label={`Open the CV and cover letter for ${card.company}`}>
-              PDF
+        </div>
+      </div>
+
+      {docs && (
+        <div className="card-docs" aria-label="Approved documents">
+          <button type="button" className="pdf-pill" onClick={() => onPreview(docs.cv, `${card.company}: CV`)} aria-label={`Show the approved CV for ${card.company}`}>
+            CV
+          </button>
+          {docs.coverLetter && (
+            <button
+              type="button"
+              className="pdf-pill"
+              onClick={() => onPreview(docs.coverLetter!, `${card.company}: cover letter`)}
+              aria-label={`Show the approved cover letter for ${card.company}`}
+            >
+              Cover letter
             </button>
           )}
         </div>
-      </div>
+      )}
 
       <p className="meta">
         {[card.location, card.remote !== "unknown" ? card.remote : null].filter(Boolean).join(" · ")}
@@ -229,7 +270,12 @@ function Card({
           ))}
         </ul>
       )}
-      {card.requirements && card.requirements.length > 0 && (
+      {card.requirements && card.requirements.length > 0 && card.requirementsStale && (
+        <p className="meta muted">
+          {card.requirements.length} core requirements, not matched to your current Profile yet. Craft matches them again.
+        </p>
+      )}
+      {card.requirements && card.requirements.length > 0 && !card.requirementsStale && (
         <details className="requirements">
           <summary>
             Meets {card.requirements.filter((r) => r.met).length} of {card.requirements.length} core requirements
@@ -244,8 +290,22 @@ function Card({
         </details>
       )}
 
+      {docs && card.form && card.status !== "applied" && !["replied", "interview", "rejected"].includes(card.status) && (
+        <p className="meta form-line">
+          {card.form === "none" ? (
+            <span className="muted">No Greenhouse, Lever or Ashby form found. Apply on the company&apos;s site.</span>
+          ) : (
+            <>
+              Form:{" "}
+              <a href={card.form.url} target="_blank" rel="noreferrer noopener">
+                {ATS_NAMES[card.form.ats] ?? card.form.ats} · {card.form.title}
+              </a>
+            </>
+          )}
+        </p>
+      )}
       {card.status === "awaiting_submit" && <p className="badge ready">Ready to submit — review the form, submit, then mark applied</p>}
-      {drafted && <p className="badge ready">Draft ready — review it, then Craft</p>}
+      {drafted && <p className="badge ready">Draft ready — review it, then Approve</p>}
       {card.working && (
         <p className="progress">
           <Spinner /> {card.runLog ?? "Queued…"}
@@ -259,9 +319,21 @@ function Card({
         </BlockerAnswerForm>
       ))}
 
-      {(card.actions.length > 0 || drafted) && (
+      {(card.actions.length > 0 || reviewable || card.status === "awaiting_submit") && (
         <div className="actions">
-          {drafted && (
+          {card.status === "awaiting_submit" && (
+            <>
+              <button className="btn primary" onClick={onReview}>
+                Review
+              </button>
+              {card.formWindowOpen && (
+                <button className="btn" disabled={busy.has(card.id)} onClick={onShowForm}>
+                  Show form
+                </button>
+              )}
+            </>
+          )}
+          {reviewable && !card.working && (
             <button className="btn primary" onClick={onOpen}>
               Review draft
             </button>
@@ -269,7 +341,7 @@ function Card({
           {card.actions.map(({ action, label }) => (
             <button
               key={action}
-              className={`btn ${action === "dismiss" || action === "withdraw" ? "ghost" : ""}`}
+              className={`btn ${label === "Dismiss" || action === "withdraw" ? "ghost" : ""}`}
               disabled={busy.has(card.id)}
               onClick={() => void onAction(action)}
             >
@@ -281,6 +353,8 @@ function Card({
     </article>
   );
 }
+
+const ATS_NAMES: Record<string, string> = { greenhouse: "Greenhouse", lever: "Lever", ashby: "Ashby" };
 
 function StatusDot({ ok, label }: { ok: boolean; label: string }) {
   return (

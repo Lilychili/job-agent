@@ -7,10 +7,12 @@ const isLegal = (status: Status, action: string) => !!getRule(action)?.from.incl
 // so a typo in the table shows up as a failing test rather than a silent change.
 const EXPECTED_LEGAL: Record<string, Status[]> = {
   shortlist: ["found"],
-  dismiss: ["found", "shortlisted", "crafting", "drafted", "crafted", "approved", "applying", "awaiting_submit"],
+  dismiss: ["found", "shortlisted", "crafting", "drafted", "applying", "awaiting_submit"],
+  unCraft: ["crafted"],
+  unApprove: ["approved"],
   craft: ["shortlisted"],
   keepDraft: ["drafted"],
-  regenerate: ["drafted", "crafted", "approved"],
+  regenerate: ["drafted", "crafted"],
   approve: ["crafted"],
   apply: ["approved"],
   resume: ["applying"],
@@ -62,7 +64,7 @@ describe("transition table", () => {
 
   it("queues a job for exactly the agent-starting actions", () => {
     const queued = ACTIONS.filter((a) => "queue" in RULES[a]).sort();
-    expect(queued).toEqual(["apply", "craft", "markApplied", "regenerate", "resume"]);
+    expect(queued).toEqual(["apply", "approve", "craft", "markApplied", "regenerate", "resume"]);
   });
 
   it("guards the gates from the spec", () => {
@@ -74,17 +76,22 @@ describe("transition table", () => {
 });
 
 describe("board helpers", () => {
-  it("ownerActions never offers system actions, resume or keepDraft", () => {
+  it("ownerActions never offers system actions or the ones the Blockers UI and Craft modal drive", () => {
+    // Dismiss is one step back from Crafted and Approved, and "not this one" before that.
+    for (const a of ["dismiss", "unCraft", "unApprove"] as const) expect(RULES[a].label).toBe("Dismiss");
     for (const s of STATUSES) {
       for (const a of ownerActions(s)) {
         expect(RULES[a].actor).toBe("owner");
         expect(a).not.toBe("resume");
         expect(a).not.toBe("keepDraft");
+        expect(a).not.toBe("regenerate");
       }
     }
     expect(ownerActions("found")).toEqual(["shortlist", "dismiss"]);
     expect(ownerActions("crafting")).toEqual(["dismiss"]);
-    expect(ownerActions("drafted")).toEqual(["dismiss", "regenerate"]);
+    expect(ownerActions("shortlisted")).toEqual(["dismiss", "craft"]);
+    expect(ownerActions("crafted")).toEqual(["unCraft", "approve"]);
+    expect(ownerActions("approved")).toEqual(["unApprove", "apply"]);
   });
 
   it("puts transient states and drafts in their predecessor's column", () => {

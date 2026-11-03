@@ -25,7 +25,9 @@ export type Status = (typeof STATUSES)[number];
 export const JOBS = {
   extractorExtract: "extractor.extract",
   scoutSearch: "scout.search",
+  scoutRescore: "scout.rescore",
   penCraft: "pen.craft",
+  shipperLocate: "shipper.locate",
   shipperPrefill: "shipper.prefill",
   shipperResume: "shipper.resume",
   shipperCaptureEvidence: "shipper.captureEvidence",
@@ -40,7 +42,7 @@ export type GuardName =
   | "noSubmissionEvidence"
   | "noOpenBlockers";
 
-export type Effect = "archiveJob" | "cancelRuns" | "lockDocuments" | "recordSubmission" | "setError" | "clearError";
+export type Effect = "archiveJob" | "cancelRuns" | "supersedeLocate" | "lockDocuments" | "unlockDocuments" | "recordSubmission" | "setError" | "clearError";
 
 export interface Rule {
   from: readonly Status[];
@@ -56,12 +58,22 @@ export interface Rule {
 export const RULES = {
   // ── Owner gates ────────────────────────────────────────────────────────
   shortlist: { from: ["found"], to: "shortlisted", actor: "owner", label: "Shortlist" },
+  // Dismiss means "not this one" in Found and Shortlisted, and "one step back" from Crafted and Approved.
   dismiss: {
-    from: ["found", "shortlisted", "crafting", "drafted", "crafted", "approved", "applying", "awaiting_submit"],
+    from: ["found", "shortlisted", "crafting", "drafted", "applying", "awaiting_submit"],
     to: "archived",
     actor: "owner",
     label: "Dismiss",
     effects: ["cancelRuns", "archiveJob"],
+  },
+  unCraft: { from: ["crafted"], to: "shortlisted", actor: "owner", label: "Dismiss" },
+  unApprove: {
+    from: ["approved"],
+    to: "crafted",
+    actor: "owner",
+    label: "Dismiss",
+    // The approved versions stay as they are; the next Approve locks whatever is newest then.
+    effects: ["supersedeLocate", "unlockDocuments"],
   },
   craft: {
     from: ["shortlisted"],
@@ -72,28 +84,31 @@ export const RULES = {
     guards: ["profileConfirmed"],
     effects: ["clearError"],
   },
-  // The owner read Claude's draft, maybe edited it, and keeps it. Saving the documents does this.
+  // Drafts from before Craft went straight to Crafted: approving one in the Craft modal saves it.
   keepDraft: {
     from: ["drafted"],
     to: "crafted",
     actor: "owner",
-    label: "Craft",
+    label: "Approve",
     guards: ["hasDraftDocuments"],
   },
+  // "Ask Claude again" in the Craft modal.
   regenerate: {
-    from: ["drafted", "crafted", "approved"],
+    from: ["drafted", "crafted"],
     to: "crafting",
     actor: "owner",
     label: "Regenerate",
     queue: { name: JOBS.penCraft, role: "pen" },
     guards: ["profileConfirmed"],
-    effects: ["clearError"],
+    effects: ["supersedeLocate", "clearError"],
   },
   approve: {
     from: ["crafted"],
     to: "approved",
     actor: "owner",
     label: "Approve",
+    // Finds the job's application form in the background, so the card shows it before Apply.
+    queue: { name: JOBS.shipperLocate, role: "shipper" },
     guards: ["hasDraftDocuments"],
     effects: ["lockDocuments"],
   },
@@ -104,7 +119,8 @@ export const RULES = {
     label: "Apply",
     queue: { name: JOBS.shipperPrefill, role: "shipper" },
     guards: ["approvedDocsIntact", "noSubmissionEvidence"],
-    effects: ["clearError"],
+    // Prefill looks for the form itself if the search started by Approve hasn't finished.
+    effects: ["supersedeLocate", "clearError"],
   },
   // Triggered by answering the last open Blocker (not a button on the card).
   resume: {
@@ -140,7 +156,7 @@ export const RULES = {
   },
 
   // ── System outcomes of agent runs ───────────────────────────────────────
-  craftSucceeded: { from: ["crafting"], to: "drafted", actor: "system", label: "Draft ready" },
+  craftSucceeded: { from: ["crafting"], to: "crafted", actor: "system", label: "Draft ready" },
   craftFailed: {
     from: ["crafting"],
     to: "previous",
@@ -165,13 +181,19 @@ export function getRule(action: string): Rule | undefined {
   return Object.hasOwn(RULES, action) ? (RULES as Record<string, Rule>)[action] : undefined;
 }
 
-/** Owner actions to render as buttons for a card. `resume` is driven by the Blockers UI, `keepDraft` by the Craft modal. */
+/** Actions with no button on the card: the Blockers UI drives `resume`, the Craft modal `keepDraft` and `regenerate`. */
+const OFF_CARD: readonly Action[] = ["resume", "keepDraft", "regenerate"];
+
+/** Owner actions to render as buttons for a card. */
 export function ownerActions(status: Status): Action[] {
   return ACTIONS.filter((a) => {
     const r: Rule = RULES[a];
-    return r.actor === "owner" && a !== "resume" && a !== "keepDraft" && r.from.includes(status);
+    return r.actor === "owner" && !OFF_CARD.includes(a) && r.from.includes(status);
   });
 }
+
+/** Statuses whose card shows the approved CV and cover letter as pills. */
+export const SHOWS_APPROVED_DOCUMENTS: readonly Status[] = ["approved", "applying", "awaiting_submit", "applied", "replied", "interview", "rejected"];
 
 /** Statuses whose documents the owner may still edit. Approved documents are locked. */
 export const EDITABLE_DOCUMENTS: readonly Status[] = ["drafted", "crafted"];

@@ -44,6 +44,7 @@ describe("boardGuesses", () => {
   it("tries the joined and hyphenated name without the legal suffix", () => {
     expect(boardGuesses("Acme Labs GmbH")).toEqual(["acmelabs", "acme-labs"]);
     expect(boardGuesses("Qonto")).toEqual(["qonto"]);
+    expect(boardGuesses("Rover.com")).toEqual(["rover"]);
     expect(boardGuesses("Société Générale")).toEqual(["societegenerale", "societe-generale"]);
   });
 });

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, getTableColumns, inArray, isNotNull, isNull, ne, notInArray } from "drizzle-orm";
 import { requirementFacts } from "@jobagent/agents/citations";
-import { ACTIVE_RUN_STATUSES, columnFor, ownerActions, RULES, type Action, type ColumnId, type Status } from "@jobagent/core";
+import { ACTIVE_RUN_STATUSES, columnFor, JOBS, ownerActions, RULES, SHOWS_APPROVED_DOCUMENTS, type Action, type ColumnId, type Status } from "@jobagent/core";
 import { agentRun, application, applicationEvent, blocker, document, job, profile, settings } from "@jobagent/db";
 import { getDb } from "./server";
 
@@ -21,19 +21,29 @@ export interface BoardCard {
   matchReasons: { met: string[]; missed: string[] } | null;
   /** The job's core requirements, and whether a Profile fact meets each. Null for jobs found before Search read them. */
   requirements: { text: string; met: boolean }[] | null;
+  /** The requirements were matched against Profile facts that no longer exist (a CV read again), so the count means nothing yet. */
+  requirementsStale: boolean;
   lastError: string | null;
   working: boolean;
   runLog: string | null;
   actions: { action: Action; label: string }[];
   blockers: { id: string; question: string; label: string }[];
-  /** Saved documents exist, so the card shows a PDF pill. */
+  /** Saved documents exist, so a Crafted card can open them in the Craft modal. */
   hasDocuments: boolean;
+  /** The approved CV and letter, shown as pills from Approved on. Null before approval. */
+  approvedDocuments: { cv: string; coverLetter: string | null } | null;
+  /** The application form found after approval; `none` when the job has no Greenhouse, Lever or Ashby form. */
+  form: { url: string; ats: string; title: string } | "none" | null;
+  /** The prefilled form is open in the Shipper window, so Show form can bring it forward. */
+  formWindowOpen: boolean;
   updatedAt: string;
 }
 
 export interface BoardData {
   cards: BoardCard[];
   searchRunning: boolean;
+  /** Claude is scoring the open cards again after the Profile's facts changed. */
+  rescoring: boolean;
   lastSearch: { ok: boolean; message: string } | null;
   workerLastSeenAt: string | null;
 }
@@ -58,6 +68,12 @@ function byApplication<T extends { applicationId: string | null }>(rows: T[]): M
     else groups.set(row.applicationId, [row]);
   }
   return groups;
+}
+
+/** Requirements that cite facts, none of which the Profile still has. */
+function staleRequirements(reqs: { factIds: string[]; closest?: string[] }[] | null, facts: Map<string, unknown>): boolean {
+  const cited = (reqs ?? []).flatMap((r) => [...r.factIds, ...(r.closest ?? [])]);
+  return cited.length > 0 && !cited.some((id) => facts.has(id));
 }
 
 export async function loadBoard(): Promise<BoardData> {
@@ -93,7 +109,7 @@ export async function loadBoard(): Promise<BoardData> {
     db
       .select({ status: agentRun.status, error: agentRun.error, output: agentRun.output })
       .from(agentRun)
-      .where(eq(agentRun.role, "scout"))
+      .where(eq(agentRun.jobName, JOBS.scoutSearch))
       .orderBy(desc(agentRun.createdAt))
       .limit(1),
     db.select({ workerLastSeenAt: settings.workerLastSeenAt }).from(settings).limit(1),
@@ -107,6 +123,11 @@ export async function loadBoard(): Promise<BoardData> {
   const craftedFromByApp = new Map<string, string | null>();
   for (const e of intoCrafting) if (!craftedFromByApp.has(e.applicationId)) craftedFromByApp.set(e.applicationId, e.from);
   const documentsByApp = new Set(withDocuments.map((d) => d.applicationId));
+  const rescoreRuns = await db
+    .select({ id: agentRun.id })
+    .from(agentRun)
+    .where(and(eq(agentRun.jobName, JOBS.scoutRescore), inArray(agentRun.status, ["queued", "running"])))
+    .limit(1);
 
   const cards: BoardCard[] = [];
   for (const { app, job: j } of rows) {
@@ -131,12 +152,16 @@ export async function loadBoard(): Promise<BoardData> {
       matchScore: j.matchScore,
       matchReasons: j.matchReasons ? { met: j.matchReasons.met, missed: j.matchReasons.missed } : null,
       requirements: j.requirements?.map((r) => ({ text: r.text, met: requirementFacts(r, facts).met.length > 0 })) ?? null,
+      requirementsStale: staleRequirements(j.requirements, facts),
       lastError: app.lastError,
       working: !!run && run.status !== "paused",
       runLog: lastLog,
       actions: ownerActions(status).map((a) => ({ action: a, label: RULES[a].label })),
       blockers: (blockersByApp.get(app.id) ?? []).map((b) => ({ id: b.id, question: b.question, label: b.fieldContext.label })),
       hasDocuments: documentsByApp.has(app.id),
+      form: j.formUrl && j.formAts ? { url: j.formUrl, ats: j.formAts, title: j.formTitle ?? j.title } : j.formVia === "none" ? "none" : null,
+      formWindowOpen: app.formWindowOpen,
+      approvedDocuments: app.approvedCvDocId && SHOWS_APPROVED_DOCUMENTS.includes(status) ? { cv: app.approvedCvDocId, coverLetter: app.approvedLetterDocId } : null,
       updatedAt: app.updatedAt.toISOString(),
     });
   }
@@ -144,6 +169,7 @@ export async function loadBoard(): Promise<BoardData> {
   return {
     cards,
     searchRunning: latestSearch?.status === "queued" || latestSearch?.status === "running",
+    rescoring: rescoreRuns.length > 0,
     lastSearch: latestSearch ? describeSearch(latestSearch) : null,
     workerLastSeenAt: cfg?.workerLastSeenAt?.toISOString() ?? null,
   };

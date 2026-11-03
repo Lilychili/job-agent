@@ -16,6 +16,7 @@ export {
   appendLog,
   finishRun,
   startSearch,
+  startRescore,
   startExtraction,
   failRun,
   failStaleRuns,

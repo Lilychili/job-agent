@@ -53,6 +53,27 @@ export function parseContact(input: unknown): Contact {
  * Trim, drop empty rows, validate, and give new facts an id. Existing ids are kept
  * (and must be unique) so documents that cite them stay valid.
  */
+/**
+ * Reading a CV again gives every fact a new ID, which would orphan everything that cites the old ones
+ * (documents, a job's matched requirements). A saved fact that is the same as one already in the Profile
+ * (same kind, text and employer, ignoring case and spacing) keeps the old ID. Facts the editor already
+ * carries an existing ID for are left alone.
+ */
+export function keepFactIds(incoming: ProfileFact[], existing: ProfileFact[]): ProfileFact[] {
+  const key = (f: ProfileFact) => [f.kind, f.text, f.org ?? ""].map((s) => s.toLowerCase().replace(/\s+/g, " ").trim()).join("|");
+  const taken = new Set(incoming.map((f) => f.id).filter((id) => existing.some((e) => e.id === id)));
+  const byKey = new Map<string, string>();
+  for (const e of existing) if (!taken.has(e.id) && !byKey.has(key(e))) byKey.set(key(e), e.id);
+  return incoming.map((f) => {
+    if (taken.has(f.id)) return f;
+    const old = byKey.get(key(f));
+    if (!old) return f;
+    byKey.delete(key(f));
+    taken.add(old);
+    return { ...f, id: old };
+  });
+}
+
 export function parseFacts(input: unknown): ProfileFact[] {
   if (!Array.isArray(input)) throw new ValidationError("Facts must be a list.");
   const seen = new Set<string>();

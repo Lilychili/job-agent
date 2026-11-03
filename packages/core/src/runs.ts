@@ -107,6 +107,11 @@ export function startSearch(ctx: CoreContext): Promise<{ runId: string }> {
   return startSoloRun(ctx, { role: "scout", jobName: JOBS.scoutSearch, input: {}, busyMessage: "A search is already running." });
 }
 
+/** Score the open cards again against the Profile as it is now, after its facts changed. */
+export function startRescore(ctx: CoreContext): Promise<{ runId: string }> {
+  return startSoloRun(ctx, { role: "scout", jobName: JOBS.scoutRescore, input: {}, busyMessage: "A search is running; it scores the cards again when it ends." });
+}
+
 /** Queue a CV extraction. `file` is relative to DATA_DIR (the web app saved the upload there). */
 export function startExtraction(ctx: CoreContext, file: { path: string; name: string }): Promise<{ runId: string }> {
   return startSoloRun(ctx, {

@@ -9,7 +9,9 @@ export { PgBoss };
 export const QUEUES: Record<JobName, { expireInSeconds: number; retryLimit: number }> = {
   [JOBS.extractorExtract]: { expireInSeconds: 2 * 60, retryLimit: 0 },
   [JOBS.scoutSearch]: { expireInSeconds: 5 * 60, retryLimit: 0 },
+  [JOBS.scoutRescore]: { expireInSeconds: 10 * 60, retryLimit: 0 },
   [JOBS.penCraft]: { expireInSeconds: 3 * 60, retryLimit: 0 },
+  [JOBS.shipperLocate]: { expireInSeconds: 4 * 60, retryLimit: 0 },
   [JOBS.shipperPrefill]: { expireInSeconds: 10 * 60, retryLimit: 0 },
   [JOBS.shipperResume]: { expireInSeconds: 10 * 60, retryLimit: 0 },
   [JOBS.shipperCaptureEvidence]: { expireInSeconds: 2 * 60, retryLimit: 2 },

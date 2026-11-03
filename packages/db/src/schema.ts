@@ -221,6 +221,14 @@ export const job = pgTable(
     requirements: jsonb().$type<JobRequirement[]>(),
     // The Profile version the requirements were matched against. Pen matches them again after a change.
     requirementsProfileVersion: integer(),
+    // The application form, found after approval (packages/ats/src/form.ts): the ATS's posting page,
+    // its title there, and how it was found. formVia "none": no Greenhouse, Lever or Ashby form exists;
+    // null: not looked for yet, or a board didn't answer.
+    formUrl: text(),
+    formAts: ats(),
+    formTitle: text(),
+    formVia: text().$type<"posting" | "board" | "careers" | "none">(),
+    formCheckedAt: timestamp({ withTimezone: true }),
     archived: boolean().notNull().default(false),
   },
   (t) => [
@@ -246,6 +254,8 @@ export const application = pgTable(
     approvedLetterDocId: uuid(),
     hasOpenBlocker: boolean().notNull().default(false),
     lastError: text(),
+    // The worker holds this application's prefilled form open in its browser. Cleared when it closes.
+    formWindowOpen: boolean().notNull().default(false),
   },
   (t) => [index("application_status_idx").on(t.status)],
 );

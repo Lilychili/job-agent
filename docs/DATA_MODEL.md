@@ -10,7 +10,7 @@ Facts parsed from the CV, reviewed and confirmed.
 | confirmed | bool | Agents refuse to run until true |
 | contact | jsonb | name, email, phone, location, links |
 | facts | jsonb[] | Each fact: `{ id, kind: role\|skill\|education\|achievement\|cert\|language, text, startDate?, endDate?, org? }` |
-| version | int | Bumped on every confirmed edit |
+| version | int | Bumped when a confirmed Profile's facts change (and on first confirmation); open cards are then scored again (`scout.rescore`) |
 
 Fact IDs are stable so Pen can cite them.
 
@@ -68,6 +68,9 @@ Postings Scout dropped. Only the link and score are kept, so Search doesn't pay 
 | matchScore | int 0–100 | |
 | matchReasons | jsonb | `{ met: [], missed: [], hardFail?: string }` |
 | requirements | jsonb? | `[{ text, factIds[], closest?[] }]`: the posting's core requirements, most important first, the Profile facts that meet each (empty when none does), and for a requirement none meets, the facts showing the closest real experience. Scout writes them; null for jobs found before that, until Pen reads them. |
+| formUrl, formAts, formTitle | text?, enum?, text? | The application form found after approval: the ATS's posting page and its title there |
+| formVia | text? | How it was found: `posting` (the job's own link), `board` (the company's board, by name or stored link), `careers` (a board linked from the careers page), or `none` (no Greenhouse, Lever or Ashby form). Null: not looked for yet, or a board didn't answer |
+| formCheckedAt | timestamp? | |
 | requirementsProfileVersion | int? | The Profile version the requirements were matched against. Pen matches them again when the Profile has changed since. |
 
 **Dedupe:** unique index on `canonicalUrl`, plus unique index on `(companyNorm, titleNorm)` among non-archived jobs. Insert with `ON CONFLICT DO NOTHING`.
@@ -79,6 +82,7 @@ Postings Scout dropped. Only the link and score are kept, so Search doesn't pay 
 | status | enum (see STATE_MACHINE.md) |
 | approvedCvDocId, approvedLetterDocId | fk? |
 | hasOpenBlocker | bool (denormalized for the board) |
+| formWindowOpen | bool: the prefilled form is open as a tab in the Shipper window. Cleared when the tab closes and when the worker starts |
 
 ## ApplicationEvent
 `applicationId, from, to, actor (owner|system|agentRunId), at`

@@ -7,6 +7,7 @@ export * from "./untrusted";
 export * from "./provider";
 export * from "./scout";
 export * from "./discover";
+export * from "./careers";
 export * from "./alerts";
 export * from "./pen";
 export * from "./templates";

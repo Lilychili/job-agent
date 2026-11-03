@@ -20,6 +20,7 @@ export default async function ProfilePage() {
             facts: profile.facts,
             confirmed: profile.confirmed,
             version: profile.version,
+            sourceFilePath: profile.sourceFilePath,
           }
         }
         extraction={extraction}

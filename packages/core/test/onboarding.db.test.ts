@@ -155,8 +155,9 @@ describe("no dead ends", () => {
     expect(await lookupAnswer(env.ctx, appId, "What is your notice period?")).toBe("Two weeks");
     expect((await env.db.select().from(blocker).where(eq(blocker.id, blockerId)))[0]!.answer).toBe("Two weeks");
 
-    // …and Regenerate is a way forward from there.
+    // …and Dismiss back to Crafted, then a new draft, is a way forward from there.
     await seedProfile(env);
+    expect((await transition(env.ctx, appId, "unApprove")).to).toBe("crafted");
     expect((await transition(env.ctx, appId, "regenerate")).to).toBe("crafting");
   });
 });
