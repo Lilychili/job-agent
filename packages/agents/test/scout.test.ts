@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Posting } from "@jobagent/ats";
-import { parseScores, postingForPrompt } from "../src/scout";
+import { parseScores, postingForPrompt, skillPattern } from "../src/scout";
 
 const posting: Posting = {
   ats: "greenhouse",
@@ -51,6 +51,31 @@ describe("parseScores", () => {
     expect(() => parse({ met: [], missed: [" "] })).toThrow(/reasons/);
   });
 
+  it("keeps requirements, with only citations of facts that exist", () => {
+    const facts = [{ id: "s1", kind: "skill" as const, text: "React" }];
+    const requirements = [
+      { text: "React", factIds: ["s1", "s1", "made-up"], closest: ["s1"] },
+      { text: "Postgres", factIds: [], closest: ["s1", "made-up"] },
+      { text: "  ", factIds: ["s1"] },
+      ...Array.from({ length: 10 }, (_, i) => ({ text: `Extra ${i}`, factIds: [] })),
+    ];
+    const [job] = parseScores({ scores: [{ ...good, requirements }] }, [posting], facts);
+    // Closest experience is only kept for a requirement no fact meets.
+    expect(job!.requirements.slice(0, 2)).toEqual([
+      { text: "React", factIds: ["s1"], closest: [] },
+      { text: "Postgres", factIds: [], closest: ["s1"] },
+    ]);
+    expect(job!.requirements).toHaveLength(10);
+    expect(parse({})[0]!.requirements).toEqual([]);
+  });
+
+  it("keeps no requirements for an alert summary, which only has a title to read them from", () => {
+    const facts = [{ id: "s1", kind: "skill" as const, text: "React" }];
+    const summary = { ...posting, summaryOnly: true, source: "indeed_alert" as const };
+    const [job] = parseScores({ scores: [{ ...good, requirements: [{ text: "Engineer", factIds: ["s1"] }] }] }, [summary], facts);
+    expect(job!.requirements).toEqual([]);
+  });
+
   it("needs every posting scored exactly once", () => {
     expect(() => parseScores({ scores: [] }, [posting])).toThrow(/no score/);
     expect(() => parseScores({ scores: [good, good] }, [posting])).toThrow(/twice/);
@@ -65,5 +90,15 @@ describe("postingForPrompt", () => {
     expect(short.length).toBeLessThan(7500);
     expect(short).toContain("€70,000");
     expect(short).not.toContain("Perks");
+  });
+
+  it("keeps lines further on that name one of the owner's skills, as whole words", () => {
+    const skills = skillPattern([{ id: "s1", kind: "skill", text: "PHP/Laravel" }, { id: "s2", kind: "skill", text: "Node.js" }], ["TypeScript"]);
+    const text = `${"x".repeat(7000)}\nOur stack: TypeScript, Node.js, Postgres\nWe love Laravel\nPHPStorm licences\nBenefits`;
+    const short = postingForPrompt(text, skills);
+    expect(short).toContain("Our stack: TypeScript, Node.js, Postgres");
+    expect(short).toContain("We love Laravel");
+    expect(short).not.toContain("PHPStorm");
+    expect(short).not.toContain("Benefits");
   });
 });

@@ -8,3 +8,8 @@ export * from "./provider";
 export * from "./scout";
 export * from "./discover";
 export * from "./alerts";
+export * from "./pen";
+export * from "./templates";
+export * from "./citations";
+export * from "./pdf";
+export * from "./documents";

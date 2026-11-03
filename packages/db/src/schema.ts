@@ -21,6 +21,7 @@ export const applicationStatus = pgEnum("application_status", [
   "found",
   "shortlisted",
   "crafting",
+  "drafted",
   "crafted",
   "approved",
   "applying",
@@ -85,10 +86,33 @@ export interface Contact {
   location?: string;
   links?: string[];
 }
+/** A piece of a document and the Profile facts it relies on. */
+export interface CitedText {
+  text: string;
+  factIds: string[];
+}
+export interface CvContent {
+  summary: CitedText;
+  experience: { roleFactId: string; bullets: CitedText[] }[];
+  skills: CitedText[];
+  otherFactIds: string[];
+}
+export interface LetterContent {
+  greeting: string;
+  paragraphs: CitedText[];
+  closing: string;
+}
 export interface MatchReasons {
   met: string[];
   missed: string[];
   hardFail?: string;
+}
+/** A core requirement of a posting, and the Profile facts that meet it (none when no fact does). */
+export interface JobRequirement {
+  text: string;
+  factIds: string[];
+  /** When no fact meets it: the facts showing the nearest real experience, e.g. MySQL for "Postgres". */
+  closest?: string[];
 }
 export interface FieldContext {
   label: string;
@@ -193,6 +217,10 @@ export const job = pgTable(
     rawPosting: text().notNull().default(""),
     matchScore: integer(),
     matchReasons: jsonb().$type<MatchReasons>(),
+    // Null for jobs found before Search read requirements; Pen reads them then.
+    requirements: jsonb().$type<JobRequirement[]>(),
+    // The Profile version the requirements were matched against. Pen matches them again after a change.
+    requirementsProfileVersion: integer(),
     archived: boolean().notNull().default(false),
   },
   (t) => [
@@ -282,6 +310,8 @@ export const document = pgTable(
     kind: documentKind().notNull(),
     version: integer().notNull(),
     htmlSource: text().notNull(),
+    // What the document says and which facts back it, for the review screen.
+    content: jsonb().$type<CvContent | LetterContent>(),
     pdfPath: text().notNull(),
     sha256: text().notNull(),
     factIds: text().array().notNull().default(sql`'{}'::text[]`),

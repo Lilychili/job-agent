@@ -1,0 +1,1 @@
+ALTER TABLE "job" ADD COLUMN "requirements_profile_version" integer;

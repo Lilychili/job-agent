@@ -67,6 +67,8 @@ Postings Scout dropped. Only the link and score are kept, so Search doesn't pay 
 | rawPosting | text | Stored as untrusted |
 | matchScore | int 0–100 | |
 | matchReasons | jsonb | `{ met: [], missed: [], hardFail?: string }` |
+| requirements | jsonb? | `[{ text, factIds[], closest?[] }]`: the posting's core requirements, most important first, the Profile facts that meet each (empty when none does), and for a requirement none meets, the facts showing the closest real experience. Scout writes them; null for jobs found before that, until Pen reads them. |
+| requirementsProfileVersion | int? | The Profile version the requirements were matched against. Pen matches them again when the Profile has changed since. |
 
 **Dedupe:** unique index on `canonicalUrl`, plus unique index on `(companyNorm, titleNorm)` among non-archived jobs. Insert with `ON CONFLICT DO NOTHING`.
 
@@ -88,13 +90,15 @@ Postings Scout dropped. Only the link and score are kept, so Search doesn't pay 
 | kind | enum: cv / cover_letter |
 | version | int |
 | htmlSource | text |
+| content | jsonb? | What the document says, each piece with the fact IDs it cites; the Craft modal edits this |
 | pdfPath | text |
 | sha256 | text |
 | factIds | text[] | Profile facts used |
 | profileVersion | int |
+| agentRunId | uuid? | The Pen run that wrote it; empty for the owner's edits |
 | approvedAt | timestamp? |
 
-Unique `(applicationId, kind, version)`. Approved rows are immutable (DB trigger or app guard).
+Unique `(applicationId, kind, version)`. A CV and its letter are always saved together with the same version. Approved rows are immutable (DB trigger or app guard).
 
 ## AgentRun
 | Field | Type |
@@ -102,7 +106,7 @@ Unique `(applicationId, kind, version)`. Approved rows are immutable (DB trigger
 | role | enum: extractor / scout / pen / shipper |
 | applicationId | fk? |
 | status | queued / running / paused / succeeded / failed |
-| promptVersion | text (git hash of agent.md) |
+| promptVersion | text (git hash of agent.md; a run that used more than one prompt joins them with `+`, e.g. Pen's and Scout's when Pen re-read requirements) |
 | model | text |
 | input, output | jsonb |
 | checkpoint | jsonb? |

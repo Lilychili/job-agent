@@ -6,6 +6,7 @@ export const STATUSES = [
   "found",
   "shortlisted",
   "crafting",
+  "drafted",
   "crafted",
   "approved",
   "applying",
@@ -56,7 +57,7 @@ export const RULES = {
   // ── Owner gates ────────────────────────────────────────────────────────
   shortlist: { from: ["found"], to: "shortlisted", actor: "owner", label: "Shortlist" },
   dismiss: {
-    from: ["found", "shortlisted", "crafting", "crafted", "approved", "applying", "awaiting_submit"],
+    from: ["found", "shortlisted", "crafting", "drafted", "crafted", "approved", "applying", "awaiting_submit"],
     to: "archived",
     actor: "owner",
     label: "Dismiss",
@@ -71,8 +72,16 @@ export const RULES = {
     guards: ["profileConfirmed"],
     effects: ["clearError"],
   },
+  // The owner read Claude's draft, maybe edited it, and keeps it. Saving the documents does this.
+  keepDraft: {
+    from: ["drafted"],
+    to: "crafted",
+    actor: "owner",
+    label: "Craft",
+    guards: ["hasDraftDocuments"],
+  },
   regenerate: {
-    from: ["crafted", "approved"],
+    from: ["drafted", "crafted", "approved"],
     to: "crafting",
     actor: "owner",
     label: "Regenerate",
@@ -131,7 +140,7 @@ export const RULES = {
   },
 
   // ── System outcomes of agent runs ───────────────────────────────────────
-  craftSucceeded: { from: ["crafting"], to: "crafted", actor: "system", label: "Craft done" },
+  craftSucceeded: { from: ["crafting"], to: "drafted", actor: "system", label: "Draft ready" },
   craftFailed: {
     from: ["crafting"],
     to: "previous",
@@ -156,13 +165,16 @@ export function getRule(action: string): Rule | undefined {
   return Object.hasOwn(RULES, action) ? (RULES as Record<string, Rule>)[action] : undefined;
 }
 
-/** Owner actions to render as buttons for a card. `resume` is driven by the Blockers UI. */
+/** Owner actions to render as buttons for a card. `resume` is driven by the Blockers UI, `keepDraft` by the Craft modal. */
 export function ownerActions(status: Status): Action[] {
   return ACTIONS.filter((a) => {
     const r: Rule = RULES[a];
-    return r.actor === "owner" && a !== "resume" && r.from.includes(status);
+    return r.actor === "owner" && a !== "resume" && a !== "keepDraft" && r.from.includes(status);
   });
 }
+
+/** Statuses whose documents the owner may still edit. Approved documents are locked. */
+export const EDITABLE_DOCUMENTS: readonly Status[] = ["drafted", "crafted"];
 
 export const COLUMNS = [
   { id: "found", title: "Found" },
@@ -177,12 +189,14 @@ export const COLUMNS = [
 export type ColumnId = (typeof COLUMNS)[number]["id"];
 
 /**
- * Which column a card sits in. Transient states stay in the column they came from;
- * Approved also holds "Ready to submit" cards (Apply v1). Hidden: archived, withdrawn.
+ * Which column a card sits in. Crafting, and the draft it ends in, stay in the column the card was in
+ * before crafting (`previous`); Approved also holds "Ready to submit" cards (Apply v1). Hidden:
+ * archived, withdrawn.
  */
 export function columnFor(status: Status, previous?: Status | null): ColumnId | null {
   switch (status) {
     case "crafting":
+    case "drafted":
       return previous === "crafted" || previous === "approved" ? previous : "shortlisted";
     case "applying":
     case "awaiting_submit":

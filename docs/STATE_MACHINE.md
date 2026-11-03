@@ -5,12 +5,14 @@ The kanban board *is* the state machine. `Application.status` is the column. Eve
 ## Statuses
 
 ```
-Found → Shortlisted → Crafting → Crafted → Approved → Applying → AwaitingSubmit → Applied → { Replied | Interview | Rejected }
-                                                                                         ↘ Withdrawn
+Found → Shortlisted → Crafting → Drafted → Crafted → Approved → Applying → AwaitingSubmit → Applied → { Replied | Interview | Rejected }
+                                                                                                    ↘ Withdrawn
 Any → Archived (dismiss)
 ```
 
-`Crafting`, `Applying` are transient "agent working" states (shown as a spinner on the card, same column as their predecessor on the board). `AwaitingSubmit` is shown in the Approved column with a "Ready to submit" badge in Apply v1.
+`Crafting`, `Applying` are transient "agent working" states (shown as a spinner on the card, same column as their predecessor on the board). `Drafted` means Claude's draft is waiting for the owner; it sits in the same column as `Crafting` with a "Draft ready" badge. `AwaitingSubmit` is shown in the Approved column with a "Ready to submit" badge in Apply v1.
+
+Craft and Regenerate open the Craft modal at once: it shows Claude's progress, then the draft in an editor beside its PDF. Clicking Craft in the modal saves the owner's edits as a new document version (if anything changed) and moves Drafted → Crafted. A Crafted card has a PDF pill that reopens the modal, where edits save a new version without changing the status; an Approved card's documents are read-only there.
 
 Blocked is **not** a status — it is a flag (`open Blocker exists`) layered on whatever status the card is in, shown as a red badge.
 
@@ -20,11 +22,12 @@ Blocked is **not** a status — it is a flag (`open Blocker exists`) layered on 
 |---|---|---|---|---|
 | — | Search | Owner | Found (new cards) | `scout.search` |
 | Found | Shortlist | Owner | Shortlisted | — |
-| Found / any pre-Applied, including Crafting and Applying | Dismiss | Owner | Archived (closes any active run) | — |
+| Found / any pre-Applied, including Crafting, Drafted and Applying | Dismiss | Owner | Archived (closes any active run) | — |
 | Shortlisted | Craft | Owner | Crafting | `pen.craft` |
-| Crafting | run succeeds | System | Crafted | — |
-| Crafting | run fails | System | Shortlisted (+ error) | — |
-| Crafted, Approved | Regenerate | Owner | Crafting | `pen.craft` (new version) |
+| Crafting | run succeeds | System | Drafted | — |
+| Crafting | run fails | System | the status before Crafting (+ error) | — |
+| Drafted | Keep draft (Craft in the modal) | Owner | Crafted | — (needs a saved CV) |
+| Drafted, Crafted, Approved | Regenerate | Owner | Crafting | `pen.craft` (new version) |
 | Crafted | Approve | Owner | Approved | — (locks doc versions + hashes) |
 | Approved | Apply | Owner | Applying | `shipper.prefill` |
 | Applying | needs answer | System | Applying + Blocker | (run pauses) |

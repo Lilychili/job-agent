@@ -2,7 +2,7 @@
 
 A single-user app that finds jobs, writes CVs and cover letters from verified facts, and prefills application forms, with your approval between every step. The plan lives in [docs/](docs/PLAN.md).
 
-**Status: M0 (Foundations) done; M1 (Onboarding) built, needs a real-CV check; M2 (Search) built, needs a first real search.** The board, state machine, queue, worker and live updates are real, and so is onboarding: encrypted API key, Profile editor with CV extraction, Preferences, AnswerBank and the Blockers inbox. Search is real too: Claude searches the web for companies that fit your Preferences, code looks for their Greenhouse, Lever or Ashby boards, and Scout scores the open jobs. You don't have to list companies. Pen and Shipper are still **stubs** that behave like the real ones at their boundaries (versioned + hashed documents, Blockers, evidence). They will be replaced in M3 (Pen) and M4 (Shipper).
+**Status: M0 (Foundations) done; M1 (Onboarding) built, needs a real-CV check; M2 (Search) built, needs a first real search.** The board, state machine, queue, worker and live updates are real, and so is onboarding: encrypted API key, Profile editor with CV extraction, Preferences, AnswerBank and the Blockers inbox. Search is real too: Claude searches the web for companies that fit your Preferences, code looks for their Greenhouse, Lever or Ashby boards, and Scout scores the open jobs. You don't have to list companies. Pen is real as of M3: Claude writes the CV and cover letter from cited Profile facts, and you edit them beside the PDF before keeping them. Shipper is still a **stub** that behaves like the real one at its boundaries (Blockers, evidence); M4 replaces it.
 
 Agents reach Claude through your signed-in Claude Code CLI (your subscription) or an Anthropic API key (pay per use); choose in Settings.
 
@@ -13,6 +13,7 @@ Requires Node 22+, pnpm 10 and Docker.
 ```bash
 cp .env.example .env
 pnpm install
+pnpm --filter @jobagent/agents exec playwright install chromium   # prints the CV and cover letter PDFs
 pnpm db:up          # Postgres 16 on 127.0.0.1:5432 (also creates jobagent_test)
 pnpm db:migrate
 pnpm dev            # web on http://127.0.0.1:3000 + worker
@@ -31,7 +32,7 @@ To click through the board without onboarding, `pnpm db:seed` adds a confirmed d
 Then open the board and try the whole loop:
 
 1. **Search** → three demo jobs appear in Found. Search again: no duplicates.
-2. **Shortlist → Craft** → the card spins while the Pen stub writes CV + letter v1, then moves to Crafted.
+2. **Shortlist → Craft** → the Craft modal opens while Claude writes the CV and cover letter. Edit them beside the PDF preview, then click **Craft**: the card moves to Crafted with a **PDF** pill that reopens them for editing or download.
 3. **Approve → Apply** → the Shipper stub hits a question it can't answer and raises a **Blocker** (red).
 4. Answer it → saved to the AnswerBank, the Shipper resumes → *Ready to submit*.
 5. **Mark applied** → submission evidence is recorded; the card can never be submitted again.
@@ -87,4 +88,4 @@ docs/             The MVP plan
 
 ## Next: M3
 
-The real Pen: HTML templates, cited facts, PDF rendering and the review screen.
+The real Pen and the Craft modal are built: Claude drafts from cited facts, the owner edits beside the PDF, and the PDFs are saved without metadata. Still to do: the exit check of 5 jobs crafted and approved, with a spot check for unsupported claims and an `exiftool` metadata check.

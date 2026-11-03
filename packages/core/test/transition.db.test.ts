@@ -128,14 +128,26 @@ describe("craft", () => {
     expect((await status(appId)).status).toBe("shortlisted");
   });
 
-  it("success closes the run and moves to Crafted", async () => {
+  it("success closes the run and waits in Drafted until the owner keeps the draft", async () => {
     await seedProfile(env);
     const { appId } = await makeApp(env, "shortlisted");
     const { runId } = await transition(env.ctx, appId, "craft");
     await transition(env.ctx, appId, "craftSucceeded", { actor: "system", runId });
-    expect((await status(appId)).status).toBe("crafted");
+    expect((await status(appId)).status).toBe("drafted");
     const [run] = await env.db.select().from(agentRun).where(eq(agentRun.id, runId!));
     expect(run!.status).toBe("succeeded");
+    await expectError(transition(env.ctx, appId, "keepDraft"), "guard", /draft/);
+    await makeDocument(env, appId, "cv");
+    await transition(env.ctx, appId, "keepDraft");
+    expect((await status(appId)).status).toBe("crafted");
+  });
+
+  it("a failed new draft returns to the draft it replaced", async () => {
+    await seedProfile(env);
+    const { appId } = await makeApp(env, "drafted");
+    const { runId } = await transition(env.ctx, appId, "regenerate");
+    await transition(env.ctx, appId, "craftFailed", { actor: "system", runId, error: "Bad JSON" });
+    expect((await status(appId)).status).toBe("drafted");
   });
 
   it("failure returns to the previous column with the error", async () => {
