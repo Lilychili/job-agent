@@ -252,6 +252,15 @@ describe("apply", () => {
     expect(env.enqueued.at(-1)?.name).toBe("shipper.captureEvidence");
   });
 
+  it("markApplied works straight from Approved, and only once", async () => {
+    const { appId } = await approvedApp();
+    await transition(env.ctx, appId, "markApplied");
+    expect((await status(appId)).status).toBe("applied");
+    const ev = await env.db.select().from(evidence).where(eq(evidence.applicationId, appId));
+    expect(ev.map((e) => e.type)).toEqual(["submission"]);
+    await expectError(transition(env.ctx, appId, "markApplied"), "illegal", /./);
+  });
+
   it("prefill failure returns to Approved", async () => {
     const { appId } = await approvedApp();
     const { runId } = await transition(env.ctx, appId, "apply");

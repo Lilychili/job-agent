@@ -43,7 +43,7 @@ Blocked is **not** a status — it is a flag (`open Blocker exists`) layered on 
 | Applying | needs answer | System | Applying + Blocker | (run pauses) |
 | Applying (blocked) | Answer blocker | Owner | Applying | `shipper.resume` |
 | Applying | prefill done | System | AwaitingSubmit | — |
-| AwaitingSubmit | Mark applied | Owner | Applied | `shipper.captureEvidence` |
+| Approved, AwaitingSubmit | Applied | Owner | Applied | `shipper.captureEvidence` |
 | Applied | Manual move | Owner | Replied / Interview / Rejected | — |
 
 ## Guards (enforced server-side, not just in UI)

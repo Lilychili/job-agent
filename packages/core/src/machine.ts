@@ -31,6 +31,7 @@ export const JOBS = {
   shipperPrefill: "shipper.prefill",
   shipperResume: "shipper.resume",
   shipperCaptureEvidence: "shipper.captureEvidence",
+  repliesCheck: "replies.check",
   heartbeat: "system.heartbeat",
 } as const;
 export type JobName = (typeof JOBS)[keyof typeof JOBS];
@@ -131,14 +132,15 @@ export const RULES = {
     queue: { name: JOBS.shipperResume, role: "shipper" },
     guards: ["noOpenBlockers", "approvedDocsIntact", "noSubmissionEvidence"],
   },
+  // From Approved too: the owner may apply by hand, without the prefill.
   markApplied: {
-    from: ["awaiting_submit"],
+    from: ["approved", "awaiting_submit"],
     to: "applied",
     actor: "owner",
-    label: "Mark applied",
+    label: "Applied",
     queue: { name: JOBS.shipperCaptureEvidence, role: "shipper" },
     guards: ["noSubmissionEvidence"],
-    effects: ["recordSubmission"],
+    effects: ["supersedeLocate", "recordSubmission"],
   },
   markReplied: { from: ["applied"], to: "replied", actor: "owner", label: "Replied" },
   markInterview: { from: ["applied", "replied"], to: "interview", actor: "owner", label: "Interview" },

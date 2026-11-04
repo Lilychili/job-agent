@@ -81,7 +81,7 @@ export async function finishRun(
 /** Runs that aren't tied to a card aren't transitions. Only one of each role at a time. */
 async function startSoloRun(
   ctx: CoreContext,
-  run: { role: "scout" | "extractor"; jobName: JobName; input: Record<string, unknown>; busyMessage: string },
+  run: { role: "scout" | "extractor" | "replies"; jobName: JobName; input: Record<string, unknown>; busyMessage: string },
 ): Promise<{ runId: string }> {
   return withTx(ctx.pool, async (tx, client) => {
     // Serialize concurrent clicks.
@@ -110,6 +110,11 @@ export function startSearch(ctx: CoreContext): Promise<{ runId: string }> {
 /** Score the open cards again against the Profile as it is now, after its facts changed. */
 export function startRescore(ctx: CoreContext): Promise<{ runId: string }> {
   return startSoloRun(ctx, { role: "scout", jobName: JOBS.scoutRescore, input: {}, busyMessage: "A search is running; it scores the cards again when it ends." });
+}
+
+/** Look in the owner's mail for answers to the applications they sent. */
+export function startRepliesCheck(ctx: CoreContext): Promise<{ runId: string }> {
+  return startSoloRun(ctx, { role: "replies", jobName: JOBS.repliesCheck, input: {}, busyMessage: "Replies are already being checked." });
 }
 
 /** Queue a CV extraction. `file` is relative to DATA_DIR (the web app saved the upload there). */

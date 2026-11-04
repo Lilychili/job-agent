@@ -17,6 +17,7 @@ export {
   finishRun,
   startSearch,
   startRescore,
+  startRepliesCheck,
   startExtraction,
   failRun,
   failStaleRuns,

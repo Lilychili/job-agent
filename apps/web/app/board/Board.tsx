@@ -105,9 +105,19 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
               <Spinner /> Scoring your cards again against your updated Profile…
             </span>
           )}
+          {!data.repliesRunning && data.lastReplies && <span className={data.lastReplies.ok ? "hint" : "error"}>{data.lastReplies.message}</span>}
         </div>
         <div className="actions">
           <AddJobDialog onAdded={refetch} />
+          <button className="btn" disabled={data.repliesRunning || busy.has("replies")} onClick={() => void post("replies", "/api/replies")}>
+            {data.repliesRunning ? (
+              <>
+                <Spinner /> Checking replies…
+              </>
+            ) : (
+              "Check replies"
+            )}
+          </button>
           <button
             className="btn primary"
             disabled={data.searchRunning || busy.has("search")}

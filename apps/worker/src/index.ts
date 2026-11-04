@@ -6,6 +6,7 @@ import { makeEnqueue, QUEUES, startBoss } from "@jobagent/queue";
 import { extractorExtract } from "./jobs/extractor";
 import { penCraft } from "./jobs/pen";
 import { rescoreIfStale, scoutRescore } from "./jobs/rescore";
+import { repliesCheck } from "./jobs/replies";
 import { scoutSearch } from "./jobs/scout";
 import { shipperLocate } from "./jobs/locate";
 import { shipperCaptureEvidence, shipperPrefill, showForm } from "./jobs/shipper";
@@ -31,6 +32,7 @@ if (recovered) console.log(`Closed ${recovered} run(s) left over from a previous
 await boss.work<JobData>(JOBS.extractorExtract,runner(ctx, JOBS.extractorExtract, extractorExtract));
 await boss.work<JobData>(JOBS.scoutSearch,runner(ctx, JOBS.scoutSearch, scoutSearch));
 await boss.work<JobData>(JOBS.scoutRescore, runner(ctx, JOBS.scoutRescore, scoutRescore));
+await boss.work<JobData>(JOBS.repliesCheck, runner(ctx, JOBS.repliesCheck, repliesCheck));
 await boss.work<JobData>(JOBS.penCraft, runner(ctx, JOBS.penCraft, penCraft));
 await boss.work<JobData>(JOBS.shipperLocate, runner(ctx, JOBS.shipperLocate, shipperLocate));
 await boss.work<JobData>(JOBS.shipperPrefill, runner(ctx, JOBS.shipperPrefill, shipperPrefill));

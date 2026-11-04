@@ -9,6 +9,7 @@ export * from "./scout";
 export * from "./discover";
 export * from "./careers";
 export * from "./alerts";
+export * from "./replies";
 export * from "./pen";
 export * from "./templates";
 export * from "./citations";
