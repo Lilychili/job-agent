@@ -42,12 +42,12 @@ Each milestone ends with something usable. Estimates assume one developer, part-
 - Confirmation capture (page text + screenshot) immediately after submit; idempotency key.
 
 #### Where shipping stands before M5
-Prefill v1 is built for Lever: `shipper.locate` finds the form on Approve, and `shipper.prefill` opens it in a headed window (`FormSession` holds the host lock, blocks the submit request and re-hashes each upload), fills it from Profile, AnswerBank and the approved documents, raises Blockers for required questions it can't answer, and hands the window to the owner. Greenhouse and Ashby forms are found but not yet filled. "Mark applied" is still the owner's word: it writes a `submission` evidence row, and `shipper.captureEvidence` keeps a screenshot and the page text of whatever the window shows, not a matched confirmation. M5 adds the rest below.
+Prefill v1 is built for Lever and Greenhouse: `shipper.locate` finds the form on Approve, and `shipper.prefill` opens it in a headed window (`FormSession` holds the host lock, blocks the submit request and re-hashes each upload), fills it from Profile, AnswerBank and the approved documents, raises Blockers for required questions it can't answer, and hands the window to the owner. Ashby forms are found but not yet filled. On Greenhouse, location search boxes, cover-letter uploads and education/employment sections are left for the owner. "Mark applied" is still the owner's word: it writes a `submission` evidence row, and `shipper.captureEvidence` keeps a screenshot and the page text of whatever the window shows, not a matched confirmation. M5 adds the rest below.
 
 #### Missing features and the plan
 | Gap | Plan |
 |---|---|
-| Real browser Shipper | Built for Lever (M4). Still to do: Greenhouse and Ashby adapters in `packages/forms`. |
+| Real browser Shipper | Built for Lever and Greenhouse (M4). Still to do: the Ashby adapter in `packages/forms`. |
 | Recheck employer, role and destination | Before filling, load the form and compare employer, job title and ATS host with the row's `job`. Stop with a Blocker on any mismatch. Block navigation off the job's ATS host in the browser context, not just in the prompt. |
 | Fill only from verified facts | Every `form.fill` value carries a source (`profile`, `answerBank` or `blocker`) that code checks. Reject a value with no source or one the page suggested. Log the source of each field on the run. |
 | Unknown required answer | Keep the Blocker loop: pause, ask, save the answer to the AnswerBank, resume. A required field with no confident answer never gets a guess. |

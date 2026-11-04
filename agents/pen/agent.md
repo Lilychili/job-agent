@@ -27,7 +27,7 @@ Code adds the owner's name and contact details, and each role's title, employer 
 ## Rules
 - Code rejects a CV that leaves out a role, an achievement, a skill, a degree, a certificate or a language, or uses an achievement twice or under another employer's role. Code also rejects an unknown ID, and any text with no citation.
 - Never add skills, numbers, titles, dates, employers or achievements that aren't in the facts. Every number you write must appear in a fact you cite for that text, so "10 years of experience" needs a fact that says 10. Don't work out totals. The company's name and the job title are the only other text you may take from the posting.
-- Titles include levels: don't call the owner "senior", "lead" or "principal" unless one of their role titles says so. Code rejects it. Naming the job you're applying for is fine.
+- Titles include levels: don't call the owner "senior", "lead" or "principal" unless one of their role titles says so. The owner is warned about any level word no role title states. Naming the job you're applying for is fine.
 - If the posting asks for something the owner lacks, don't imply it, and don't apologise for it.
 - Write the documents in the language of the posting if the facts allow it. Otherwise use the language of the facts.
 - The greeting and closing state no facts, so they carry no citations.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { factSource, requirementFacts, unsupportedNumber } from "@jobagent/agents/citations";
+import { factSource, requirementFacts, unstatedLevel, unsupportedNumber } from "@jobagent/agents/citations";
 import type { CitedText, CvContent, DocumentStyle, JobRequirement, LetterContent, ProfileFact } from "@jobagent/db";
 import { api } from "@/lib/api";
 import type { BoardCard } from "@/lib/board";
@@ -481,7 +481,13 @@ function PieceList({
 function Piece({ value, onChange, facts, job, readOnly, label, short }: { value: CitedText; onChange: (v: CitedText) => void; facts: Facts; job: Job; readOnly: boolean; label: string; short?: boolean }) {
   const cited = value.factIds.map((id) => facts.get(id)).filter((f): f is ProfileFact => !!f);
   const invented = unsupportedNumber(value.text, [...cited.map(factSource), job.company, job.title]);
-  const warning = !value.text.trim() ? null : cited.length === 0 ? "Your own words: no Profile fact backs this." : invented ? `"${invented}" isn't in the facts this cites.` : null;
+  const level = unstatedLevel(value.text, facts.values(), job.title);
+  const warnings = !value.text.trim()
+    ? []
+    : [
+        cited.length === 0 ? "Your own words: no Profile fact backs this." : invented ? `"${invented}" isn't in the facts this cites.` : null,
+        level ? `Calls you "${level}", which none of your role titles say. Keep it only if it's true.` : null,
+      ].filter((w): w is string => !!w);
   return (
     <div className="craft-piece">
       {short ? (
@@ -490,7 +496,11 @@ function Piece({ value, onChange, facts, job, readOnly, label, short }: { value:
         <textarea aria-label={label} value={value.text} onChange={(e) => onChange({ ...value, text: e.target.value })} readOnly={readOnly} />
       )}
       {cited.length > 0 && <FactChips facts={cited} label="Facts this cites" />}
-      {warning && <p className="craft-warning">{warning}</p>}
+      {warnings.map((w) => (
+        <p key={w} className="craft-warning">
+          {w}
+        </p>
+      ))}
     </div>
   );
 }

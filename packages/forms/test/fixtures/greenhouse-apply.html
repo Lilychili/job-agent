@@ -1,0 +1,105 @@
+<!doctype html>
+<!-- A trimmed copy of a real Greenhouse job-boards form's markup (November 2026), for tests. The real
+     dropdowns are react-select; the script at the bottom stands in for it with the same DOM: a combobox
+     input, and a #react-select-<id>-listbox of role=option items only while the menu is open. -->
+<html>
+<head><meta charset="utf-8"><title>Job Application for Engineer at Acme</title></head>
+<body>
+<form id="application-form" class="application--form" method="get" novalidate>
+  <div class="field-wrapper"><label id="first_name-label" for="first_name" class="label">First Name<span aria-hidden="true">*</span></label><input id="first_name" type="text" aria-required="true" aria-labelledby="first_name-label"></div>
+  <div class="field-wrapper"><label id="last_name-label" for="last_name" class="label">Last Name<span aria-hidden="true">*</span></label><input id="last_name" type="text" aria-required="true" aria-labelledby="last_name-label"></div>
+  <div class="field-wrapper"><label id="email-label" for="email" class="label">Email<span aria-hidden="true">*</span></label><input id="email" type="text" aria-required="true" aria-labelledby="email-label"></div>
+
+  <fieldset class="phone-input"><legend class="visually-hidden">Phone</legend>
+    <div class="select" data-options='["Spain +34","United Kingdom +44","United States +1"]' data-show="code"><div class="select__container"><label id="country-label" for="country" class="label select__label">Country<span aria-hidden="true">*</span></label>
+      <div class="select-shell"><div class="select__control"><div class="select__value-container"><div class="select__placeholder">Select...</div><div class="select__input-container"><input class="select__input" id="country" type="text" role="combobox" aria-expanded="false" aria-labelledby="country-label" aria-required="true" value=""></div></div></div><input type="text" required tabindex="-1" class="requiredInput" value=""></div></div></div>
+    <div class="field-wrapper"><label id="phone-label" for="phone" class="label">Phone<span aria-hidden="true">*</span></label><input id="phone" type="tel" aria-required="true" aria-labelledby="phone-label"></div>
+  </fieldset>
+
+  <div class="field-wrapper"><div role="group" aria-labelledby="upload-label-resume" aria-required="true" class="file-upload"><div id="upload-label-resume" class="label upload-label">Resume/CV<span class="required">*</span></div>
+    <div class="secondary-button"><button type="button" class="btn">Attach</button><label class="visually-hidden" for="resume">Attach</label><input id="resume" class="visually-hidden" type="file" accept=".pdf,.doc,.docx,.txt,.rtf"></div>
+    <div class="secondary-button"><button type="button" class="btn" data-testid="resume-text">Enter manually</button><label class="visually-hidden" for="resume_text">Enter manually</label></div></div></div>
+  <div class="field-wrapper"><div role="group" aria-labelledby="upload-label-cover_letter" aria-required="false" class="file-upload"><div id="upload-label-cover_letter" class="label upload-label">Cover Letter</div>
+    <div class="secondary-button"><button type="button" class="btn">Attach</button><label class="visually-hidden" for="cover_letter">Attach</label><input id="cover_letter" class="visually-hidden" type="file"></div></div></div>
+
+  <div class="field-wrapper"><label id="question_1-label" for="question_1" class="label">LinkedIn Profile</label><input id="question_1" type="text" aria-required="false" aria-labelledby="question_1-label"></div>
+  <div class="field-wrapper"><label id="question_2-label" for="question_2" class="label">Website</label><input id="question_2" type="text" aria-required="false" aria-labelledby="question_2-label"></div>
+  <div class="select" data-options='["Yes","No"]'><div class="select__container"><label id="question_3-label" for="question_3" class="label select__label">Do you require visa sponsorship?<span aria-hidden="true">*</span></label>
+    <div class="select-shell"><div class="select__control"><div class="select__value-container"><div class="select__placeholder">Select...</div><div class="select__input-container"><input class="select__input" id="question_3" type="text" role="combobox" aria-expanded="false" aria-labelledby="question_3-label" aria-required="true" value=""></div></div></div><input type="text" required tabindex="-1" class="requiredInput" value=""></div></div></div>
+  <div class="select" data-options='["English","Spanish","French"]' data-multi="true"><div class="select__container"><label id="question_4-label" for="question_4" class="label select__label">Which languages do you speak?</label>
+    <div class="select-shell"><div class="select__control"><div class="select__value-container"><div class="select__placeholder">Select...</div><div class="select__input-container"><input class="select__input" id="question_4" type="text" role="combobox" aria-expanded="false" aria-labelledby="question_4-label" aria-required="false" value=""></div></div></div></div></div></div>
+  <div class="field-wrapper"><label id="question_5-label" for="question_5" class="label">Why Acme?<span aria-hidden="true">*</span></label><textarea id="question_5" aria-required="true" aria-labelledby="question_5-label"></textarea></div>
+  <div class="field-wrapper"><label id="question_6-label" for="question_6" class="label">Additional Information</label><textarea id="question_6" aria-required="false" aria-labelledby="question_6-label"></textarea></div>
+  <div class="select" data-options='[]'><div class="select__container"><label id="candidate-location-label" for="candidate-location" class="label select__label">Location (City)</label>
+    <div class="select-shell"><div class="select__control"><div class="select__value-container"><div class="select__input-container"><input class="select__input" id="candidate-location" type="text" role="combobox" aria-expanded="false" aria-labelledby="candidate-location-label" aria-required="false" value=""></div></div></div></div></div></div>
+
+  <div class="select" data-options='["Female","Male","Decline To Self Identify"]'><div class="select__container"><label id="gender-label" for="gender" class="label select__label">Gender</label>
+    <div class="select-shell"><div class="select__control"><div class="select__value-container"><div class="select__placeholder">Select...</div><div class="select__input-container"><input class="select__input" id="gender" type="text" role="combobox" aria-expanded="false" aria-labelledby="gender-label" aria-required="false" value=""></div></div></div></div></div></div>
+
+  <button type="submit" id="submit-app" class="btn btn--pill">Submit application</button>
+</form>
+<a id="away" href="https://example.invalid/elsewhere">Elsewhere</a>
+<script>
+  // Stand-in for react-select: same markup, same open/filter/choose behaviour. Like the real
+  // server-rendered page, the inputs are there before the script listens ("hydration").
+  setTimeout(() => { for (const root of document.querySelectorAll(".select")) {
+    const input = root.querySelector("input[role=combobox]");
+    const id = input.id;
+    const options = JSON.parse(root.dataset.options);
+    const multi = root.dataset.multi === "true";
+    const control = root.querySelector(".select__control");
+    const values = root.querySelector(".select__value-container");
+    const chosen = [];
+    let menu = null;
+    const close = () => { menu?.remove(); menu = null; input.setAttribute("aria-expanded", "false"); };
+    const render = () => {
+      if (!options.length) return;
+      if (!menu) {
+        menu = document.createElement("div");
+        menu.className = "select__menu";
+        menu.innerHTML = `<div class="select__menu-list" role="listbox" aria-multiselectable="${multi}" id="react-select-${id}-listbox"></div>`;
+        control.after(menu);
+        input.setAttribute("aria-expanded", "true");
+      }
+      const list = menu.firstChild;
+      list.innerHTML = "";
+      const q = input.value.toLowerCase();
+      options.filter((o) => o.toLowerCase().includes(q) && !chosen.includes(o)).forEach((o, i) => {
+        const el = document.createElement("div");
+        el.className = "select__option";
+        el.setAttribute("role", "option");
+        el.id = `react-select-${id}-option-${i}`;
+        el.textContent = o;
+        el.addEventListener("mousedown", (e) => { e.preventDefault(); choose(o); });
+        list.appendChild(el);
+      });
+    };
+    const choose = (o) => {
+      if (multi) chosen.push(o); else chosen.splice(0, chosen.length, o);
+      values.querySelectorAll(".select__single-value, .select__multi-value, .select__placeholder").forEach((n) => n.remove());
+      for (const c of chosen) {
+        const v = document.createElement("div");
+        v.className = multi ? "select__multi-value" : "select__single-value";
+        v.innerHTML = multi ? `<div class="select__multi-value__label"></div>` : "";
+        // The phone country shows only its dialling code once chosen, as on the real form.
+        (multi ? v.firstChild : v).textContent = root.dataset.show === "code" ? c.split(" ").pop() : c;
+        values.prepend(v);
+      }
+      input.value = "";
+      close();
+    };
+    control.addEventListener("mousedown", (e) => { if (e.target !== input) e.preventDefault(); menu ? close() : (input.focus(), render()); });
+    input.addEventListener("input", render);
+    input.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+    input.addEventListener("blur", close);
+  } }, 800);
+  // Greenhouse's script posts the application as JSON to the board's own /<token>/jobs/<id>.
+  document.getElementById("application-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    fetch(location.pathname, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ job_application: {} }) })
+      .then(() => { document.body.insertAdjacentHTML("beforeend", "<p id='done'>Thank you for applying.</p>"); })
+      .catch(() => { document.body.insertAdjacentHTML("beforeend", "<p id='failed'>Failed.</p>"); });
+  });
+</script>
+</body>
+</html>

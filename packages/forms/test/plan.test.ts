@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchOption, matchOptions, planFill, type FillSources } from "../src/plan";
+import { matchOption, matchOptions, planFill, standardFromLabel, type FillSources } from "../src/plan";
 import type { FormField } from "../src/types";
 
 describe("matchOption", () => {
@@ -92,5 +92,50 @@ describe("planFill", () => {
     expect(plan.uploads.map((f) => f.id)).toEqual(["resume"]);
     expect(plan.skipped.map((f) => f.id)).toEqual(["other"]);
     expect(plan.unknown).toEqual([]);
+  });
+});
+
+describe("standardFromLabel", () => {
+  it("knows link questions by their whole label", () => {
+    expect(standardFromLabel("LinkedIn Profile")).toBe("linkedin");
+    expect(standardFromLabel("Github URL")).toBe("github");
+    expect(standardFromLabel("Website")).toBe("website");
+    expect(standardFromLabel("Portfolio link")).toBe("website");
+    expect(standardFromLabel("Current Company")).toBe("currentCompany");
+  });
+
+  it("leaves questions that only mention them", () => {
+    expect(standardFromLabel("Why do you want to join LinkedIn?")).toBeUndefined();
+    expect(standardFromLabel("Website you're most proud of building")).toBeUndefined();
+  });
+});
+
+describe("planFill with split names and a country", () => {
+  const sources: FillSources = {
+    contact: { name: "Ana María Ruiz", email: "ana@example.com", location: "Madrid, Spain" },
+    currentCompany: null,
+    letterText: null,
+    lookup: async () => null,
+  };
+
+  it("splits the name and picks the country from the location", async () => {
+    const plan = await planFill(
+      [
+        { id: "first_name", label: "First Name", kind: "text", required: true, standard: "firstName" },
+        { id: "last_name", label: "Last Name", kind: "text", required: true, standard: "lastName" },
+        { id: "country", label: "Country", kind: "select", required: true, standard: "country", options: ["Portugal", "Spain"] },
+      ],
+      sources,
+    );
+    expect(plan.fills.map((f) => f.value.value)).toEqual(["Ana", "María Ruiz", "Spain"]);
+    expect(plan.unknown).toEqual([]);
+  });
+
+  it("treats a one-word name's last name as unknown", async () => {
+    const plan = await planFill([{ id: "last_name", label: "Last Name", kind: "text", required: true, standard: "lastName" }], {
+      ...sources,
+      contact: { ...sources.contact, name: "Ana" },
+    });
+    expect(plan.unknown.map((f) => f.id)).toEqual(["last_name"]);
   });
 });

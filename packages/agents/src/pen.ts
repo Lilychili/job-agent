@@ -7,7 +7,7 @@
 import { ValidationError, str } from "@jobagent/core";
 import type { CitedText, CvContent, FactKind, LetterContent, ProfileFact } from "@jobagent/db";
 import { addUsage, askClaude, NO_USAGE, type Auth } from "./ask";
-import { escapeRegex, factSource, unsupportedNumber } from "./citations";
+import { factSource, unsupportedNumber } from "./citations";
 import type { Usage } from "./claude";
 import { loadPrompt } from "./prompts";
 import { wrapUntrusted } from "./untrusted";
@@ -148,18 +148,8 @@ export function parseDraft(output: unknown, facts: ProfileFact[], job: Pick<PenJ
   });
   const summary = cited(cv.summary, "The summary");
   const skills = citedList(cv.skills, "Skills", (i) => `Skill ${i + 1}`);
-  if (!owner) {
-    checkKeepsTheCv({ experience, skills, otherFactIds }, facts);
-    checkLevelWords(
-      [
-        { text: summary.text, where: "The summary" },
-        ...experience.flatMap((e, i) => e.bullets.map((b, j) => ({ text: b.text, where: `Experience ${i + 1}, bullet ${j + 1}` }))),
-        ...paragraphs.map((p, i) => ({ text: p.text, where: `Paragraph ${i + 1}` })),
-      ],
-      facts,
-      job.title,
-    );
-  }
+  // A level word no role title states ("Senior") isn't rejected: the Craft modal flags it for the owner.
+  if (!owner) checkKeepsTheCv({ experience, skills, otherFactIds }, facts);
   // Roles stay in CV order, most recent first, whatever order Claude gave them in.
   if (!owner) {
     const start = (id: string) => byId.get(id)?.startDate ?? "";
@@ -215,23 +205,6 @@ function checkKeepsTheCv(cv: Pick<CvContent, "experience" | "skills" | "otherFac
   const other = new Set(cv.otherFactIds);
   const otherLeft = facts.filter((f) => OTHER_KINDS.includes(f.kind) && !other.has(f.id));
   if (otherLeft.length) throw new ValidationError(`Other facts leave out ${otherLeft.map(named).join(", ")}. List every degree, certificate and language.`);
-}
-
-// Words that give the owner a level. A job asking for seniority tempts a title the Profile never gave.
-const LEVEL_WORDS = /(?<!\w)(senior|principal|staff engineer|lead (?:engineer|developer)|tech lead|head of|chief)(?!\w)/gi;
-
-/**
- * A level word in the documents must be in the title of a role the owner held: "Mentored senior
- * engineers" doesn't make the owner senior. Naming the job itself ("the Senior Engineer role") is
- * fine, so the job title is taken out first.
- */
-function checkLevelWords(pieces: { text: string; where: string }[], facts: ProfileFact[], jobTitle: string) {
-  const stated = facts.filter((f) => f.kind === "role").map((f) => f.text.toLowerCase());
-  const title = new RegExp(escapeRegex(jobTitle), "gi");
-  for (const { text, where } of pieces) {
-    const word = text.replace(title, "").match(LEVEL_WORDS)?.find((w) => !stated.some((s) => s.includes(w.toLowerCase())));
-    if (word) throw new ValidationError(`${where} calls the owner "${word}", which no fact states. Show the level through the roles instead.`);
-  }
 }
 
 export const cvFactIds = ({ summary, experience, skills, otherFactIds }: CvContent) => [
