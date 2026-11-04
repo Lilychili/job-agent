@@ -1,6 +1,6 @@
 import "server-only";
 import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
-import { answerRule, DEFAULT_HINTS, maskKey, type AnswerRule } from "@jobagent/core";
+import { answerRule, DEFAULT_HINTS, encryptionKeyFromEnv, maskKey, type AnswerRule } from "@jobagent/core";
 import { agentRun, answerBank, application, blocker, discoveredCompany, job, preferences, profile, settings, type Contact, type ProfileFact } from "@jobagent/db";
 import { getDb } from "./server";
 
@@ -37,6 +37,22 @@ export async function loadSettingsView() {
     /** Can an agent call Claude right now? */
     ready: provider === "cli" || hasKey,
   };
+}
+
+/** Is APP_ENCRYPTION_KEY set, so an API key can be stored? */
+export function encryptionReady(): boolean {
+  try {
+    encryptionKeyFromEnv();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** When the worker last beat, or null if it never has. */
+export async function loadWorkerLastSeen(): Promise<Date | null> {
+  const [s] = await getDb().select({ at: settings.workerLastSeenAt }).from(settings).limit(1);
+  return s?.at ?? null;
 }
 
 export type AnswerRow = {

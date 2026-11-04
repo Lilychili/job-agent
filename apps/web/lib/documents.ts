@@ -3,7 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import type { Browser } from "playwright";
 import { launchPdfBrowser, parseDraft, type PenDraft } from "@jobagent/agents";
 import { EDITABLE_DOCUMENTS, TransitionError, ValidationError, type Status } from "@jobagent/core";
-import { application, document, job, profile, type CvContent, type Db, type JobRequirement, type LetterContent, type ProfileFact } from "@jobagent/db";
+import { application, document, DOCUMENT_STYLES, job, profile, settings, type CvContent, type Db, type DocumentStyle, type JobRequirement, type LetterContent, type ProfileFact } from "@jobagent/db";
 import { getDb } from "./server";
 
 type Globals = { pdfBrowser?: Promise<Browser> };
@@ -21,6 +21,7 @@ export async function pdfBrowser(): Promise<Browser> {
 interface SavedDocument<C> {
   id: string;
   version: number;
+  style: DocumentStyle;
   content: C;
 }
 
@@ -33,6 +34,8 @@ export interface CraftData {
   requirements: JobRequirement[] | null;
   cv: SavedDocument<CvContent> | null;
   coverLetter: SavedDocument<LetterContent> | null;
+  /** The look the owner last chose, for documents that aren't saved yet. */
+  defaultStyle: DocumentStyle;
 }
 
 /** The application, its job and the confirmed Profile. Throws a 404 if any is missing. */
@@ -51,13 +54,13 @@ export async function loadTarget(db: Db, applicationId: string) {
 /** The newest version of each document. */
 export async function latestDocuments(db: Db, applicationId: string) {
   const docs = await db
-    .select({ id: document.id, kind: document.kind, version: document.version, content: document.content })
+    .select({ id: document.id, kind: document.kind, version: document.version, style: document.style, content: document.content })
     .from(document)
     .where(eq(document.applicationId, applicationId))
     .orderBy(desc(document.version));
   const pick = <C>(kind: "cv" | "cover_letter") => {
     const d = docs.find((x) => x.kind === kind && x.content);
-    return d ? { id: d.id, version: d.version, content: d.content as C } : null;
+    return d ? { id: d.id, version: d.version, style: d.style, content: d.content as C } : null;
   };
   return { cv: pick<CvContent>("cv"), coverLetter: pick<LetterContent>("cover_letter") };
 }
@@ -72,8 +75,20 @@ export async function loadCraft(applicationId: string): Promise<CraftData> {
     editable: EDITABLE_DOCUMENTS.includes(t.status),
     facts: t.profile.facts,
     requirements: t.requirements,
+    defaultStyle: await defaultStyle(db),
     ...(await latestDocuments(db, applicationId)),
   };
+}
+
+export async function defaultStyle(db: Db): Promise<DocumentStyle> {
+  const [s] = await db.select({ style: settings.documentStyle }).from(settings).limit(1);
+  return s?.style ?? "color";
+}
+
+/** The style from a request body, or a 400. */
+export function parseStyle(v: unknown): DocumentStyle {
+  if (!DOCUMENT_STYLES.includes(v as DocumentStyle)) throw new ValidationError("Choose Colour or Black.");
+  return v as DocumentStyle;
 }
 
 /** The owner's edits from a request body, checked against the Profile. */

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function BoardPage() {
   const progress = setupProgress(await loadSetupStatus());
-  if (!progress.started) redirect("/setup");
+  if (!progress.started) redirect("/welcome");
   const initial = await loadBoard();
   return <Board initial={initial} setup={progress.ready ? null : progress} />;
 }

@@ -1,6 +1,44 @@
 // Prints a document's HTML to PDF and removes everything that says how or when it was made.
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { PDFDict, PDFDocument, PDFName, PDFRef, PDFStream } from "pdf-lib";
 import { chromium, type Browser } from "playwright";
+import { repoRoot } from "@jobagent/core";
+
+/**
+ * Inter (SIL Open Font License, packages/agents/fonts/OFL.txt), inlined as data: URLs because the page
+ * may not load anything. Read once; the PDF embeds only the glyphs it uses.
+ */
+let fontCss: string | undefined;
+const LATIN = "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD";
+const LATIN_EXT = "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF";
+// Static weights, not the variable font: Chromium embeds those as TrueType, which every PDF reader and
+// applicant tracking system reads, where the variable font would become Type 3 glyphs.
+function embeddedFonts(): string {
+  if (fontCss !== undefined) return fontCss;
+  try {
+    fontCss = [400, 500, 600, 700]
+      .flatMap((weight) => [
+        { file: `inter-latin-ext-${weight}-normal.woff2`, range: LATIN_EXT, weight },
+        { file: `inter-latin-${weight}-normal.woff2`, range: LATIN, weight },
+      ])
+      .map(({ file, range, weight }) => {
+        const data = readFileSync(path.join(repoRoot(), "packages", "agents", "fonts", file)).toString("base64");
+        return `@font-face{font-family:"Inter";font-style:normal;font-weight:${weight};font-display:block;src:url(data:font/woff2;base64,${data}) format("woff2");unicode-range:${range};}`;
+      })
+      .join("");
+  } catch (err) {
+    // A missing font file must not stop a CV from printing: the template falls back to Helvetica/Arial.
+    console.error("[pdf] Inter not found, printing with the fallback font:", err);
+    fontCss = "";
+  }
+  return fontCss;
+}
+
+const withFonts = (html: string) => {
+  const css = embeddedFonts();
+  return css ? html.replace("</head>", `<style>${css}</style></head>`) : html;
+};
 
 /** Nothing on the page may run or load anything: it holds text Claude wrote after reading a posting. */
 async function printPdf(browser: Browser, html: string): Promise<Uint8Array> {
@@ -8,7 +46,9 @@ async function printPdf(browser: Browser, html: string): Promise<Uint8Array> {
   try {
     const page = await context.newPage();
     await page.route("**/*", (route) => route.abort());
-    await page.setContent(html, { waitUntil: "load" });
+    await page.setContent(withFonts(html), { waitUntil: "load" });
+    // Data-URL fonts load at once, but give layout a chance to use them before printing.
+    await page.evaluate("document.fonts.ready").catch(() => {});
     return await page.pdf({ preferCSSPageSize: true, printBackground: true });
   } finally {
     await context.close();

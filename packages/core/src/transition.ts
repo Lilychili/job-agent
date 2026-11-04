@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import type pg from "pg";
 import {
   agentRun,
@@ -13,7 +13,7 @@ import {
 } from "@jobagent/db";
 import { TransitionError, type CoreContext } from "./context";
 import { checkGuards } from "./guards";
-import { ACTIVE_RUN_STATUSES, getRule, JOBS, type Action, type Status } from "./machine";
+import { ACTIVE_RUN_STATUSES, columnFor, getRule, JOBS, type Action, type Status } from "./machine";
 
 export interface TransitionOptions {
   /** Who is asking. Owner requests can't trigger system actions and vice versa. */
@@ -148,6 +148,11 @@ export async function transitionInTx(
     }
   }
 
+  // An error belongs to the column it happened in: once the card moves on, it no longer applies.
+  if (app.lastError && patch.lastError === undefined && (await changesColumn(tx, app.id, from, to))) {
+    patch.lastError = null;
+  }
+
   // ── Close the run that reported this outcome ─────────────────────────────
   const outcome = RUN_OUTCOME[action as Action];
   if (outcome && opts.runId) {
@@ -236,6 +241,26 @@ async function previousStatus(tx: Db, applicationId: string, current: Status): P
     .orderBy(desc(applicationEvent.at))
     .limit(1);
   return (ev?.from as Status | null) ?? "shortlisted";
+}
+
+/** Whether moving from `from` to `to` puts the card in a different board column (or off the board). */
+async function changesColumn(tx: Db, applicationId: string, from: Status, to: Status): Promise<boolean> {
+  const inCraftLoop = (s: Status) => s === "crafting" || s === "drafted";
+  const craftedFrom = inCraftLoop(from) || inCraftLoop(to) ? await statusBeforeCrafting(tx, applicationId) : null;
+  // Entering crafting from outside the draft loop: the card stays in the column it came from.
+  const toPrev = to === "crafting" && !inCraftLoop(from) ? from : craftedFrom;
+  return columnFor(from, craftedFrom) !== columnFor(to, toPrev);
+}
+
+/** The status the card was in when it last entered crafting from outside the draft loop (as the board computes it). */
+async function statusBeforeCrafting(tx: Db, applicationId: string): Promise<Status | null> {
+  const [ev] = await tx
+    .select({ from: applicationEvent.fromStatus })
+    .from(applicationEvent)
+    .where(and(eq(applicationEvent.applicationId, applicationId), eq(applicationEvent.toStatus, "crafting"), ne(applicationEvent.fromStatus, "drafted")))
+    .orderBy(desc(applicationEvent.at))
+    .limit(1);
+  return (ev?.from as Status | null) ?? null;
 }
 
 /** Approve the newest version of each document kind. Approved rows are immutable (DB trigger). */

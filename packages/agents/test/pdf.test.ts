@@ -28,7 +28,7 @@ describe("the printed CV as plain text", () => {
     );
     const [pdf] = await renderPdfs([html]);
     const { text } = await extractText(await getDocumentProxy(new Uint8Array(pdf!)), { mergePages: true });
-    const order = ["Ana Ruiz", "SUMMARY", "WORK EXPERIENCE", "Software Engineer, Acme", "2019-03 – 2023-01", "Cut build time", "Developer, Globex", "2015-01 – 2019-02", "Built the billing", "SKILLS", "TypeScript", "EDUCATION", "BSc Computer Science", "CERTIFICATIONS", "AWS Certified", "LANGUAGES", "Spanish: Native"];
+    const order = ["Ana Ruiz", "SUMMARY", "WORK EXPERIENCE", "Software Engineer · Acme", "2019-03 – 2023-01", "Cut build time", "Developer · Globex", "2015-01 – 2019-02", "Built the billing", "SKILLS", "TypeScript", "EDUCATION", "BSc Computer Science", "CERTIFICATIONS", "AWS Certified", "LANGUAGES", "Spanish: Native"];
     const at = order.map((s) => text.indexOf(s));
     expect(at.every((i) => i >= 0)).toBe(true);
     expect(at).toEqual([...at].sort((a, b) => a - b));
