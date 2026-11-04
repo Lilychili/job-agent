@@ -6,6 +6,7 @@ import { AtsError, getJson, type Board, type Posting } from "./types";
 
 export * from "./types";
 export { htmlToText } from "./text";
+export { isPublicHttps, isWebLink } from "./url";
 export { boardFromUrl, boardGuesses, boardHomeUrl, findBoard, followRedirects, linkedInJobUrl, type BoardLookup } from "./find";
 
 /** Fetch every open posting on one company's board. */

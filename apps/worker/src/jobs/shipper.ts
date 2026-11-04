@@ -159,12 +159,12 @@ export async function shipperPrefill(helpers: RunHelpers): Promise<Outcome> {
   }
 }
 
-/** After the owner marks it applied: keep what the form window shows now, then close it. */
 /** The owner clicked Show form: bring the application's tab to the front. */
 export async function showForm(applicationId: string): Promise<void> {
   await heldWindow(applicationId)?.show();
 }
 
+/** After the owner marks it applied: keep what the form window shows now, then close it. */
 export async function shipperCaptureEvidence({ ctx, run, log }: RunHelpers): Promise<Outcome> {
   const appId = run.applicationId!;
   const db = createDb(ctx.pool);

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { boardFromUrl, boardGuesses, boardHomeUrl, findBoard, followRedirects, linkedInJobUrl } from "../src/index";
+import { boardFromUrl, boardGuesses, boardHomeUrl, findBoard, followRedirects, isPublicHttps, linkedInJobUrl } from "../src/index";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -112,5 +112,30 @@ describe("followRedirects", () => {
 describe("boardHomeUrl", () => {
   it("gives the public page of a board", () => {
     expect(boardHomeUrl({ ats: "lever", boardToken: "acme" })).toBe("https://jobs.lever.co/acme");
+  });
+});
+
+describe("isPublicHttps", () => {
+  it("allows only https on a public name", () => {
+    expect(isPublicHttps("https://www.wizeline.ai/careers")).toBe(true);
+    expect(isPublicHttps("http://www.wizeline.ai/careers")).toBe(false);
+    expect(isPublicHttps("https://intranet/x")).toBe(false);
+    expect(isPublicHttps("not a link")).toBe(false);
+  });
+
+  it("refuses this machine and private networks, however they are spelled", () => {
+    for (const link of [
+      "https://localhost/x",
+      "https://localhost./x",
+      "https://app.localhost/x",
+      "https://printer.local/x",
+      "https://db.internal/x",
+      "https://router.home.arpa/x",
+      "https://192.168.1.1/x",
+      "https://2130706433/x",
+      "https://[::1]/x",
+    ]) {
+      expect(isPublicHttps(link), link).toBe(false);
+    }
   });
 });

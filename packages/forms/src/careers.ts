@@ -2,22 +2,12 @@
 // Reads a company's careers page for the links on it, so code can spot an embedded or linked job board.
 // The page link came from the web: only links are read, nothing is typed or sent, and nothing it says is
 // followed. Code then asks the board's own API whether the board is really the company's.
+import { isPublicHttps } from "@jobagent/ats";
 import { chromium } from "playwright";
 import { inPage } from "./page";
 
 const MAX_LINKS = 500;
 const LOAD_TIMEOUT_MS = 20_000;
-const PRIVATE_HOST = /^(localhost|.*\.local|.*\.localhost|\d+\.\d+\.\d+\.\d+|\[.*\])$/i;
-
-/** Whether a link may be opened at all: https on a public name. */
-export function isPublicHttps(raw: string): boolean {
-  try {
-    const url = new URL(raw);
-    return url.protocol === "https:" && url.hostname.includes(".") && !PRIVATE_HOST.test(url.hostname);
-  } catch {
-    return false;
-  }
-}
 
 /** The page's own URL after redirects, its links and its frames' URLs. Empty when it can't be read. */
 export async function readCareersPage(url: string, signal?: AbortSignal): Promise<string[]> {

@@ -60,7 +60,7 @@ export async function repliesCheck({ ctx, run, log, signal }: RunHelpers): Promi
       if (!verdict) return;
       const email = emails[verdict.index]!;
       await withTx(ctx.pool, async (tx, client) => {
-        await transitionInTx(ctx, tx, client, card.id, verdict.move, { actor: "owner", note: `Moved by the reply check: "${email.subject}"` });
+        await transitionInTx(ctx, tx, client, card.id, verdict.move, { actor: "owner", recordAs: "agent", runId: run.id, note: `Moved by the reply check: "${email.subject}"` });
         await tx.insert(evidence).values({
           applicationId: card.id,
           agentRunId: run.id,

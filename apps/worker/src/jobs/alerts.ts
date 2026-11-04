@@ -36,7 +36,7 @@ function companyFinder(known: DiscoveredCompany[], read: BoardReader, helpers: P
     const company = byName.get(key);
     if (company && !company.boardToken && company.checkedAt.getTime() >= dueBefore && !boardFromUrl(link)) return Promise.resolve({ outcome: "none" });
     const home = company?.ats && company.boardToken ? [boardHomeUrl({ ats: company.ats, boardToken: company.boardToken })] : [];
-    const lookup = lookups.get(key) ?? findAndSaveBoard({ name: job.company, reason: FOUND_REASON[job.source] },[...home, link], read, helpers);
+    const lookup = lookups.get(key) ?? findAndSaveBoard({ name: job.company, reason: FOUND_REASON[job.source] }, [...home, link], read, helpers);
     lookups.set(key, lookup);
     return lookup;
   };

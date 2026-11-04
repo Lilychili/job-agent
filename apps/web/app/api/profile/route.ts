@@ -1,5 +1,6 @@
+import { rm } from "node:fs/promises";
 import { and, eq } from "drizzle-orm";
-import { keepFactIds, parseContact, parseFacts, startRescore, TransitionError, ValidationError } from "@jobagent/core";
+import { dataDirFromEnv, keepFactIds, parseContact, parseFacts, resolveDataPath, startRescore, TransitionError, ValidationError } from "@jobagent/core";
 import { agentRun, profile } from "@jobagent/db";
 import { loadProfile } from "@/lib/data";
 import { readBody, route } from "@/lib/route";
@@ -43,6 +44,10 @@ export const PUT = route(async (req) => {
     .set({ contact, facts, sourceFilePath, confirmed, version: newVersion ? existing.version + 1 : existing.version })
     .where(eq(profile.id, existing.id))
     .returning();
+  // A new CV replaced the old one, which nothing reads any more.
+  if (existing.sourceFilePath && existing.sourceFilePath !== sourceFilePath) {
+    await rm(resolveDataPath({ dataDir: dataDirFromEnv() }, existing.sourceFilePath), { force: true });
+  }
   if (newVersion) {
     // The worker's heartbeat starts it later if a search is running now.
     await startRescore(await getCtx()).catch((err) => {

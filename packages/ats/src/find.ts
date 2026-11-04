@@ -2,6 +2,7 @@
 // may pass a link it saw; whether a board exists is decided here, by asking the three public APIs.
 import { listPostings } from "./index";
 import { AtsError, type Board, type BoardAts, type BoardReader, type Posting } from "./types";
+import { isPublicHttps } from "./url";
 
 const ATS_ORDER: BoardAts[] = ["greenhouse", "lever", "ashby"];
 const BOARD_HOSTS: [RegExp, BoardAts][] = [
@@ -61,8 +62,6 @@ export function linkedInJobUrl(raw: string): string {
 
 const MAX_REDIRECTS = 5;
 const REDIRECT_TIMEOUT_MS = 8_000;
-/** A link in an email may not lead this machine to itself or its network. */
-const PRIVATE_HOST = /^(localhost|.*\.local|\d+\.\d+\.\d+\.\d+|\[.*\])$/i;
 
 /**
  * Where a tracking link ends up, without reading the page. Stops at the last public https address it
@@ -74,7 +73,7 @@ export async function followRedirects(raw: string, signal?: AbortSignal): Promis
     let next: string | null;
     try {
       const url = new URL(current);
-      if (url.protocol !== "https:" || PRIVATE_HOST.test(url.hostname)) return raw;
+      if (!isPublicHttps(url)) return raw;
       const timeout = AbortSignal.timeout(REDIRECT_TIMEOUT_MS);
       const res = await fetch(url, { redirect: "manual", signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
       await res.body?.cancel();
