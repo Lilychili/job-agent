@@ -19,8 +19,9 @@ const STYLES: { value: DocumentStyle; label: string; title: string }[] = [
 
 /**
  * The Craft modal: Claude's draft on the left, the PDF it prints to on the right. Opens as soon as
- * Craft is clicked and shows Claude's progress until the draft is saved. Approve here moves a draft
- * to Crafted, and Crafted documents to Approved.
+ * Craft is clicked and shows Claude's progress until the draft is saved. Craft here moves a draft to
+ * Crafted (closing with ✕ leaves it in Shortlisted). For Crafted documents, Update saves edits and
+ * stays in Crafted, and Approve moves them to Approved.
  */
 export function CraftModal({
   card,
@@ -84,7 +85,7 @@ export function CraftModal({
     dialog.current?.close();
   }
 
-  /** Save the documents; Approve moves a draft to Crafted, and approves Crafted ones after saving any edits. */
+  /** Save the documents: "approve" on a draft is Craft (moves it to Crafted); on Crafted documents it saves any edits, then approves. */
   async function keep(mode: "save" | "approve") {
     if (!cv || !letter) return;
     const andApprove = mode === "approve" && card.status === "crafted";
@@ -219,22 +220,27 @@ export function CraftModal({
           <div className="actions">
             {saved && (
               dirty ? (
-                <span className="hint">{card.status === "drafted" ? "Approve" : "Save"} to download your edits</span>
+                <span className="hint">{card.status === "drafted" ? "Craft" : "Update"} to download your edits</span>
               ) : (
                 <button type="button" className="btn" onClick={() => void download(saved.id)}>
                   Download {tab === "cv" ? "CV" : "cover letter"}
                 </button>
               )
             )}
-            {editable && card.status === "crafted" && dirty && (
-              <button type="button" className="btn" onClick={() => void keep("save")} disabled={!!saving}>
-                {saving === "save" ? "Saving…" : "Save changes"}
+            {editable && card.status === "drafted" && (
+              <button type="button" className="btn primary" onClick={() => void keep("approve")} disabled={!!saving}>
+                {saving === "approve" ? "Crafting…" : "Craft"}
               </button>
             )}
-            {editable && (card.status === "drafted" || card.status === "crafted") && (
-              <button type="button" className="btn primary" onClick={() => void keep("approve")} disabled={!!saving}>
-                {saving === "approve" ? "Approving…" : "Approve"}
-              </button>
+            {editable && card.status === "crafted" && (
+              <>
+                <button type="button" className="btn" onClick={() => void keep("save")} disabled={!!saving || !dirty} title={dirty ? undefined : "No changes to save"}>
+                  {saving === "save" ? "Updating…" : "Update"}
+                </button>
+                <button type="button" className="btn primary" onClick={() => void keep("approve")} disabled={!!saving}>
+                  {saving === "approve" ? "Approving…" : "Approve"}
+                </button>
+              </>
             )}
           </div>
         </div>

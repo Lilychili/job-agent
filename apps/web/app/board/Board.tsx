@@ -324,7 +324,7 @@ function Card({
         </p>
       )}
       {card.status === "awaiting_submit" && <p className="badge ready">Ready to submit — review the form, submit, then mark applied</p>}
-      {drafted && <p className="badge ready">Draft ready — review it, then Approve</p>}
+      {drafted && <p className="badge ready">Draft ready — review it, then Craft</p>}
       {card.working && (
         <p className="progress">
           <Spinner /> {card.runLog ?? "Queued…"}

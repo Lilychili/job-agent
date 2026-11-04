@@ -56,8 +56,8 @@ The app is a **Kanban board**. Each job is a card that moves through fixed colum
 flowchart LR
     S([Search]):::agent --> F[Found]
     F -->|you: Shortlist| SL[Shortlisted]
-    SL -->|agent: Craft| C[Crafted]
-    C -->|you: review & Approve| A[Approved]
+    SL -->|agent drafts, you edit & Craft| C[Crafted]
+    C -->|you: Update or Approve| A[Approved]
     A -->|agent: Prefill form| R{{Ready to submit}}
     R -->|you: Submit & Mark applied| AP[Applied]
     AP -->|agent: Check replies| RE[Replied / Interview / Rejected]
@@ -68,7 +68,7 @@ The main screens:
 
 - **Setup**: a four-step checklist. Connect Claude, then build your Profile (upload a PDF or DOCX CV and Claude extracts it, or type it in), then set what you're looking for, then answer the common application questions.
 - **Board**: the columns above, updated live while agents work. Each card shows its score, the reasons for it, the salary as stated, and its current run with a Stop button.
-- **Craft modal**: the generated CV and cover letter side by side with the PDF preview. Edit, regenerate, then approve.
+- **Craft modal**: the generated CV and cover letter side by side with the PDF preview. For a new draft, edit or ask Claude again, then click **Craft** to move it to Crafted. Closing with ✕ leaves the card in Shortlisted. For a Crafted card, **Update** saves your edits and keeps it in Crafted, and **Approve** moves it to Approved.
 - **Questions**: your saved answers (the AnswerBank) and an inbox of open Blockers.
 - **Settings**: Claude provider, Gmail connection, and export or delete all data.
 
@@ -106,8 +106,8 @@ Gmail (job alerts and replies) is optional. See [docs/SOURCES.md](docs/SOURCES.m
 Open http://127.0.0.1:3000/setup. If you ran `pnpm db:seed`, go straight to the board.
 
 1. **Search**: new jobs appear in *Found*, each with a score and reasons. Search again and you get no duplicates.
-2. **Shortlist → Craft**: Claude writes the CV and cover letter. Edit them next to the live PDF preview, then click **Craft**.
-3. **Approve**: the exact document versions are locked by hash, and the Shipper finds the job's application form.
+2. **Shortlist → Craft**: the editor opens while Claude writes the CV and cover letter. Edit them next to the live PDF preview, then click **Craft** in the editor: the card moves to *Crafted*. Close with ✕ instead and it stays in *Shortlisted* with the draft kept.
+3. **Review → Update or Approve**: open a Crafted card with **Review draft**. **Update** saves your edits and the card stays in *Crafted*. **Approve**, in the editor or straight from the card, locks the exact document versions by hash and moves the card to *Approved*, and the Shipper finds the job's application form.
 4. **Apply**: a real browser window opens and fills the form (Lever today). A required question it can't answer becomes a red **Blocker** instead of a guess.
 5. **Answer the Blocker**: the answer is saved and the form is refilled from scratch. Review it, then submit it yourself in that window.
 6. **Mark applied**: a screenshot and the confirmation text are kept as evidence, and the job can never be applied to again.
