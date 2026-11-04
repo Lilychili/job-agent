@@ -3,9 +3,13 @@ import type { Page, Request } from "playwright";
 /** Fields every ATS asks for, filled from the Profile rather than the AnswerBank. */
 export type StandardField =
   | "name"
+  | "firstName"
+  | "lastName"
   | "email"
   | "phone"
   | "location"
+  /** Picked from the last part of the Profile's location ("Madrid, Spain" → Spain). */
+  | "country"
   | "currentCompany"
   | "linkedin"
   | "github"
@@ -19,7 +23,7 @@ export type FieldKind = "text" | "textarea" | "choice" | "multi" | "select" | "f
 
 /** One question on an application form, as the adapter read it. Label and options are page text: untrusted. */
 export interface FormField {
-  /** The input's name attribute; unique on the form. */
+  /** The input's name attribute (Lever) or id (Greenhouse); unique on the form. */
   id: string;
   label: string;
   kind: FieldKind;

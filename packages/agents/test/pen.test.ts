@@ -3,6 +3,7 @@ import { ValidationError } from "@jobagent/core";
 import type { Contact, ProfileFact } from "@jobagent/db";
 import { cvFactIds, letterFactIds, parseDraft, schemaFor } from "../src/pen";
 import { cvHtml, letterHtml } from "../src/templates";
+import { unstatedLevel } from "../src/citations";
 
 const facts: ProfileFact[] = [
   { id: "r1", kind: "role", text: "Software Engineer", org: "Acme", startDate: "2019-03", endDate: "2023-01" },
@@ -125,16 +126,18 @@ describe("parseDraft", () => {
     expect(() => parseDraft(output({ bullet: { text: "Led a team.", factIds: ["nope"] } }), facts, job, "owner")).toThrow(/unknown fact/);
   });
 
-  it("doesn't let Claude give the owner a level no fact states, though it may name the job", () => {
-    expect(() => parseDraft(withSummary("Senior engineer who ships."), facts, job)).toThrow(/summary calls the owner "Senior"/);
-    const naming = output();
-    naming.coverLetter.paragraphs[0] = { text: "I'm applying for the Senior Engineer role.", factIds: ["r1"] };
-    expect(() => parseDraft(naming, facts, { ...job, title: "Senior Engineer" })).not.toThrow();
+  it("accepts a level no role title states, for the Craft modal to flag", () => {
+    expect(parseDraft(withSummary("Senior engineer who ships."), facts, job).cv.summary.text).toBe("Senior engineer who ships.");
+  });
+
+  it("flags a level word only when no role the owner held has it in its title, and not in the job's own title", () => {
+    expect(unstatedLevel("Senior engineer who ships.", facts, job.title)).toBe("Senior");
+    expect(unstatedLevel("I'm applying for the Senior Engineer role.", facts, "Senior Engineer")).toBeUndefined();
     // A title the owner held is a fact; a level mentioned elsewhere in a fact is not a title.
     const lead: ProfileFact[] = facts.map((f) => (f.id === "r1" ? { ...f, text: "Lead Developer" } : f));
-    expect(() => parseDraft(withSummary("Lead developer who ships."), lead, job)).not.toThrow();
+    expect(unstatedLevel("Lead developer who ships.", lead, job.title)).toBeUndefined();
     const mentor: ProfileFact[] = [...facts, { id: "a3", kind: "achievement", text: "Mentored senior engineers" }];
-    expect(() => parseDraft(withSummary("Senior engineer who ships."), mentor, job)).toThrow(/calls the owner "Senior"/);
+    expect(unstatedLevel("Senior engineer who ships.", mentor, job.title)).toBe("Senior");
   });
 
   it("lists the real fact IDs in Claude's answer format, so Claude picks them instead of writing them out", () => {

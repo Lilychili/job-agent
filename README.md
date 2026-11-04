@@ -8,7 +8,7 @@
 ![Postgres](https://img.shields.io/badge/Postgres-16-336791)
 ![CI](https://github.com/Lilychili/job-agent/actions/workflows/ci.yml/badge.svg)
 
-> **Status: MVP in active development.** Search, Craft, Review and Prefill work end to end (prefill for Lever forms so far). Reply tracking via Gmail has started. Hosting, auth and the portfolio material are in progress: see [Roadmap](#roadmap).
+> **Status: MVP in active development.** Search, Craft, Review and Prefill work end to end (prefill for Lever and Greenhouse forms so far). Reply tracking via Gmail has started. Hosting, auth and the portfolio material are in progress: see [Roadmap](#roadmap).
 
 ---
 
@@ -108,7 +108,7 @@ Open http://127.0.0.1:3000/setup. If you ran `pnpm db:seed`, go straight to the 
 1. **Search**: new jobs appear in *Found*, each with a score and reasons. Search again and you get no duplicates.
 2. **Shortlist → Craft**: the editor opens while Claude writes the CV and cover letter. Watch, or click **Run in background** and carry on. When the draft is ready, the card moves to *Crafted* on its own.
 3. **Review → Approve**: open a Crafted card with **Review draft** and edit next to the live PDF preview. **Approve**, in the editor or straight from the card, saves your edits, locks the exact document versions by hash and moves the card to *Approved*. The Shipper then finds the job's application form.
-4. **Apply**: a real browser window opens and fills the form (Lever today). A required question it can't answer becomes a red **Blocker** instead of a guess.
+4. **Apply**: a real browser window opens and fills the form (Lever and Greenhouse today). A required question it can't answer becomes a red **Blocker** instead of a guess.
 5. **Answer the Blocker**: the answer is saved and the form is refilled from scratch. Review it, then submit it yourself in that window.
 6. **Mark applied**: a screenshot and the confirmation text are kept as evidence, and the job can never be applied to again.
 7. **Check replies** (with Gmail connected): employers' answers move cards to *Replied* or *Rejected*.
@@ -196,7 +196,7 @@ More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/STATE_MACH
 | M1 Onboarding: Profile, CV extraction, Preferences, AnswerBank, encrypted key | ✅ |
 | M2 Search: ATS clients, dedupe, scoring, Gmail job alerts | ✅ |
 | M3 Craft and review: cited CV and cover letter, PDF, approve and lock | ✅ (exit check with real jobs pending) |
-| M4 Apply v1: prefill and human submit | 🚧 Lever done; Greenhouse and Ashby adapters next |
+| M4 Apply v1: prefill and human submit | 🚧 Lever and Greenhouse done; Ashby adapter next |
 | M6 Reply tracking via Gmail | 🚧 Manual check works; scheduling and domain matching next |
 
 **Week 3: Deployment** 🚧

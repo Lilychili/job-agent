@@ -20,6 +20,21 @@ export function unsupportedNumber(text: string, sources: string[]): string | und
 const normName = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
 export const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// Words that give the owner a level. A job asking for seniority tempts a title the Profile never gave.
+const LEVEL_WORDS = /(?<!\w)(senior|principal|staff engineer|lead (?:engineer|developer)|tech lead|head of|chief)(?!\w)/gi;
+
+/**
+ * The first level word in `text` that no role the owner held has in its title, if any: "Mentored
+ * senior engineers" doesn't make the owner senior. Naming the job itself ("the Senior Engineer role")
+ * is fine, so the job title is taken out first. A flag for the owner to check, not a rejection: they
+ * may well be senior without a title that says so.
+ */
+export function unstatedLevel(text: string, facts: Iterable<ProfileFact>, jobTitle: string): string | undefined {
+  const stated = [...facts].filter((f) => f.kind === "role").map((f) => f.text.toLowerCase());
+  const rest = jobTitle.trim() ? text.replace(new RegExp(escapeRegex(jobTitle.trim()), "gi"), "") : text;
+  return rest.match(LEVEL_WORDS)?.find((w) => !stated.some((s) => s.includes(w.toLowerCase())));
+}
+
 /** Any of `names` as a whole word or phrase, so "Go" doesn't match "Google". Null for no names. */
 export const wordPattern = (names: string[], flags = "i") =>
   names.length ? new RegExp(`(?<!\\w)(?:${names.map(escapeRegex).join("|")})(?!\\w)`, flags) : null;

@@ -82,17 +82,39 @@ function linkFor(links: readonly string[], kind: "linkedin" | "github" | "twitte
   return links.find((l) => host(l) && !Object.values(social).some((is) => is(host(l)))) ?? null;
 }
 
+/** A whole short label that names a standard field, for forms that ask for links as custom questions. */
+const LABELS: [RegExp, StandardField][] = [
+  [/^linkedin( profile)?( url| link)?$/i, "linkedin"],
+  [/^github( profile)?( url| link)?$/i, "github"],
+  [/^(twitter|x)( profile| handle)?( url| link)?$/i, "twitter"],
+  [/^(personal )?(website|portfolio)( url| link)?$/i, "website"],
+  [/^current (company|employer)$/i, "currentCompany"],
+];
+
+/** The standard field a free-text question's label names, or undefined. */
+export function standardFromLabel(label: string): StandardField | undefined {
+  const l = label.trim().replace(/\s+/g, " ");
+  return LABELS.find(([re]) => re.test(l))?.[1];
+}
+
 function profileValue(standard: StandardField, s: FillSources): string | null {
   const c = s.contact;
+  const names = (c.name ?? "").trim().split(/\s+/).filter(Boolean);
   switch (standard) {
     case "name":
       return c.name || null;
+    case "firstName":
+      return names[0] ?? null;
+    case "lastName":
+      return names.length > 1 ? names.slice(1).join(" ") : null;
     case "email":
       return c.email || null;
     case "phone":
       return c.phone || null;
     case "location":
       return c.location || null;
+    case "country": // last part of "Madrid, Spain"
+      return c.location?.split(",").pop()?.trim() || null;
     case "currentCompany":
       return s.currentCompany;
     case "linkedin":
@@ -130,8 +152,10 @@ export async function planFill(fields: readonly FormField[], s: FillSources): Pr
       plan.skipped.push(field);
       continue;
     }
-    const fromProfile = field.standard ? profileValue(field.standard, s) : null;
-    if (fromProfile) {
+    const profile = field.standard ? profileValue(field.standard, s) : null;
+    // A Profile value for a dropdown (country) must be one of its options.
+    const fromProfile = profile === null ? null : answerFor(field, profile);
+    if (fromProfile !== null) {
       plan.fills.push({ field, value: { value: fromProfile, source: "profile" } });
       continue;
     }
