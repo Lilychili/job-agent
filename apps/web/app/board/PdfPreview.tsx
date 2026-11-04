@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { downloadDocument } from "@/lib/download";
 import { PdfPages } from "./PdfPages";
 
 /** An approved document as its PDF, nothing else. These are the files the Shipper uploads. */
@@ -8,6 +9,14 @@ export function PdfPreview({ documentId, title, onClose }: { documentId: string;
   const dialog = useRef<HTMLDialogElement>(null);
   const [pdf, setPdf] = useState<ArrayBuffer | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  async function download() {
+    setDownloading(true);
+    setDownloadError(await downloadDocument(documentId));
+    setDownloading(false);
+  }
 
   useEffect(() => {
     dialog.current?.showModal();
@@ -35,10 +44,16 @@ export function PdfPreview({ documentId, title, onClose }: { documentId: string;
       <div className="panel craft-panel">
         <div className="craft-head">
           <h2 id="pdf-preview-title">{title}</h2>
-          <button type="button" className="btn ghost" onClick={() => dialog.current?.close()} aria-label="Close">
-            ✕
-          </button>
+          <div className="actions">
+            <button type="button" className="btn" disabled={!pdf || downloading} onClick={() => void download()}>
+              Download
+            </button>
+            <button type="button" className="btn ghost" onClick={() => dialog.current?.close()} aria-label="Close">
+              ✕
+            </button>
+          </div>
         </div>
+        {downloadError && <p className="error">{downloadError}</p>}
         <div className="craft-preview">
           {pdf ? (
             <PdfPages data={pdf} label={`${title} PDF`} />

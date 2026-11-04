@@ -17,9 +17,10 @@ const STYLE = `
   body[data-style="mono"] .headline { color: var(--soft); }
   .contact { margin: 6pt 0 0; font-size: 8.8pt; color: var(--soft); }
   .sep { color: var(--rule); padding: 0 5pt; }
+  /* No letter-spacing: spaced capitals come out of the PDF as "W O RK EXPERIEN CE" for a tracking system. */
   h2 {
     margin: 15pt 0 7pt; padding-bottom: 3pt; border-bottom: 0.75pt solid var(--rule);
-    font-size: 8.4pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent);
+    font-size: 8.4pt; font-weight: 700; text-transform: uppercase; color: var(--accent);
   }
   p { margin: 0 0 5pt; }
   .entry { margin: 0 0 7pt; break-inside: avoid-page; }

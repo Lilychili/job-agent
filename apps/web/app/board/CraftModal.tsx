@@ -6,6 +6,7 @@ import type { CitedText, CvContent, DocumentStyle, JobRequirement, LetterContent
 import { api } from "@/lib/api";
 import type { BoardCard } from "@/lib/board";
 import type { CraftData } from "@/lib/documents";
+import { downloadDocument } from "@/lib/download";
 import { PdfPages } from "./PdfPages";
 
 type Kind = "cv" | "cover_letter";
@@ -107,25 +108,9 @@ export function CraftModal({
     else setActionError(res.error);
   }
 
-  /** Fetched rather than linked, so a file that is missing or changed on disk can say so here. */
   async function download(id: string) {
     setActionError(null);
-    try {
-      const res = await fetch(`/api/documents/${id}/pdf?download=1`, { cache: "no-store" });
-      if (!res.ok) {
-        const json = (await res.json().catch(() => null)) as { error?: string } | null;
-        return setActionError(json?.error ?? `Download failed (${res.status})`);
-      }
-      const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "document.pdf";
-      const url = URL.createObjectURL(await res.blob());
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = name;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    } catch {
-      setActionError("Couldn't reach the server. Is `pnpm dev` running?");
-    }
+    setActionError(await downloadDocument(id));
   }
 
   const job = { company: card.company, title: card.title };
