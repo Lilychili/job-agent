@@ -81,6 +81,11 @@ function dedupeKeys({ sourceUrl, company, title }: JobKeys) {
 export const MIN_MATCH_SCORE = 55;
 /** How long a rejected posting is left alone before it can be scored again, if Preferences don't change first. */
 const REJECTED_DAYS = 30;
+/**
+ * How long a dismissed job's company and title keep a repost out. Boards often refresh a posting
+ * about monthly, so a month would let most of them straight back in.
+ */
+export const DISMISSED_DAYS = 90;
 
 /**
  * An alert's link changes from email to email and can differ from the posting's own, so an alert job is
@@ -115,11 +120,17 @@ export async function unknownPostings<T extends JobKeys>(pool: pg.Pool, postings
     const keys = dedupeKeys(p);
     return keys ? [{ p, ...keys, pair: jobPair(keys) }] : [];
   });
+  // A dismissed job's link stays out for good. Its company and title stay out for DISMISSED_DAYS too, so
+  // a repost under a new link, or an alert that links to it differently, doesn't bring it straight back.
   const { rows } = await pool.query<{ canonical_url: string; pair: string | null }>(
-    `select canonical_url, case when archived then null else company_norm || E'\n' || title_norm end as pair
-       from job
-      where canonical_url = any($1) or (not archived and company_norm || E'\n' || title_norm = any($2))`,
-    [keyed.map((k) => k.canonicalUrl), keyed.map((k) => k.pair)],
+    `select j.canonical_url,
+            case when not j.archived or exists (
+              select 1 from application a join application_event e on e.application_id = a.id
+               where a.job_id = j.id and e.to_status = 'archived' and e.at > now() - make_interval(days => $3)
+            ) then j.company_norm || E'\n' || j.title_norm end as pair
+       from job j
+      where j.canonical_url = any($1) or j.company_norm || E'\n' || j.title_norm = any($2)`,
+    [keyed.map((k) => k.canonicalUrl), keyed.map((k) => k.pair), DISMISSED_DAYS],
   );
   const { rows: rejected } = await pool.query<{ canonical_url: string }>(
     `select canonical_url from rejected_posting

@@ -16,7 +16,7 @@
     "dev:worker": "pnpm --filter @jobagent/worker dev",
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r typecheck",
-    "lint": "eslint ."
+    "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

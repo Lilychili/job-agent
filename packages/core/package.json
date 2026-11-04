@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./machine": "./src/machine.ts",
+    "./group": "./src/group.ts",
     "./origin": "./src/origin.ts",
     "./answers": "./src/answers.ts"
   },

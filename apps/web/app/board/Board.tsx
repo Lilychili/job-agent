@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { BlockerAnswerForm } from "@/components/BlockerAnswerForm";
 import { TopBar } from "@/components/TopBar";
 import { api } from "@/lib/api";
 import { useAppEvents } from "@/lib/useAppEvents";
+import { groupByCompany } from "@jobagent/core/group";
 import { COLUMNS } from "@jobagent/core/machine";
 import type { BoardCard, BoardData } from "@/lib/board";
 import { AddJobDialog } from "./AddJobDialog";
@@ -86,6 +87,38 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
   const reviewCard = data.cards.find((c) => c.id === reviewing);
   const transition = (card: BoardCard, action: string) => post(card.id, `/api/applications/${card.id}/transition`, { action });
 
+  // Dismissing several positions of a company card at once: one refetch at the end.
+  async function dismissMany(cards: BoardCard[]) {
+    const keys = cards.map((c) => c.id);
+    setBusy((s) => new Set([...s, ...keys]));
+    try {
+      const results = await Promise.all(keys.map((id) => api(`/api/applications/${id}/transition`, "POST", { action: "dismiss" })));
+      const failed = results.find((r) => !r.ok);
+      if (failed && !failed.ok) setToast(failed.error);
+      await refetch();
+    } finally {
+      setBusy((s) => {
+        const n = new Set(s);
+        for (const k of keys) n.delete(k);
+        return n;
+      });
+    }
+  }
+
+  const cardProps = (c: BoardCard): CardProps => ({
+    card: c,
+    busy,
+    onAction: async (action) => {
+      // Craft opens the modal at once; it shows Claude's progress.
+      if ((await transition(c, action)).ok && action === "craft") setCrafting(c.id);
+    },
+    onOpen: () => setCrafting(c.id),
+    onPreview: (documentId, title) => setPreviewing({ documentId, title }),
+    onReview: () => setReviewing(c.id),
+    onShowForm: () => void post(c.id, `/api/applications/${c.id}/form`),
+    onChanged: refetch,
+  });
+
   return (
     <div className="shell">
       <TopBar />
@@ -153,22 +186,14 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
                 <span className="count">{cards.length}</span>
               </h2>
               <div className="cards">
-                {cards.map((c) => (
-                  <Card
-                    key={c.id}
-                    card={c}
-                    busy={busy}
-                    onAction={async (action) => {
-                      // Craft opens the modal at once; it shows Claude's progress.
-                      if ((await transition(c, action)).ok && action === "craft") setCrafting(c.id);
-                    }}
-                    onOpen={() => setCrafting(c.id)}
-                    onPreview={(documentId, title) => setPreviewing({ documentId, title })}
-                    onReview={() => setReviewing(c.id)}
-                    onShowForm={() => void post(c.id, `/api/applications/${c.id}/form`)}
-                    onChanged={refetch}
-                  />
-                ))}
+                {/* Found holds one card per company: positions found within a month of each other share it. */}
+                {(col.id === "found" ? groupByCompany(cards) : cards.map((c) => [c])).map((group) =>
+                  group.length === 1 ? (
+                    <Card key={group[0]!.id} {...cardProps(group[0]!)} />
+                  ) : (
+                    <CompanyCard key={group[0]!.id} cards={group} busy={busy} cardProps={cardProps} onDismiss={dismissMany} />
+                  ),
+                )}
                 {cards.length === 0 && <p className="empty">—</p>}
               </div>
             </section>
@@ -201,16 +226,7 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
   );
 }
 
-function Card({
-  card,
-  busy,
-  onAction,
-  onOpen,
-  onPreview,
-  onReview,
-  onShowForm,
-  onChanged,
-}: {
+interface CardProps {
   card: BoardCard;
   busy: Set<string>;
   onAction: (action: string) => Promise<void>;
@@ -219,7 +235,14 @@ function Card({
   onReview: () => void;
   onShowForm: () => void;
   onChanged: () => Promise<void>;
-}) {
+  /** A company card's positions, shown under the company name. */
+  tabs?: ReactNode;
+  /** Replaces Dismiss: a company card asks which positions to dismiss. */
+  onDismiss?: () => void;
+  children?: ReactNode;
+}
+
+function Card({ card, busy, onAction, onOpen, onPreview, onReview, onShowForm, onChanged, tabs, onDismiss, children }: CardProps) {
   const blocked = card.blockers.length > 0;
   const drafted = card.status === "drafted";
   // A draft, or Crafted documents not yet approved: both are reviewed and approved in the Craft modal.
@@ -230,6 +253,7 @@ function Card({
       <div className="card-head">
         <div>
           <p className="company">{card.company}</p>
+          {tabs}
           <h3 className="title">
             <a href={card.sourceUrl} target="_blank" rel="noreferrer noopener">
               {card.title}
@@ -362,14 +386,99 @@ function Card({
               key={action}
               className={`btn ${label === "Dismiss" || action === "withdraw" ? "ghost" : ""}`}
               disabled={busy.has(card.id)}
-              onClick={() => void onAction(action)}
+              onClick={() => (action === "dismiss" && onDismiss ? onDismiss() : void onAction(action))}
             >
               {label}
             </button>
           ))}
         </div>
       )}
+      {children}
     </article>
+  );
+}
+
+/** One company's Found positions on one card: tabs switch between them, Dismiss asks which to drop. */
+function CompanyCard({
+  cards,
+  busy,
+  cardProps,
+  onDismiss,
+}: {
+  cards: BoardCard[];
+  busy: Set<string>;
+  cardProps: (c: BoardCard) => CardProps;
+  onDismiss: (cards: BoardCard[]) => Promise<void>;
+}) {
+  const [activeId, setActiveId] = useState(cards[0]!.id);
+  const [picking, setPicking] = useState(false);
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
+  // A shortlisted or dismissed position leaves the group: fall back to the first one left.
+  const active = cards.find((c) => c.id === activeId) ?? cards[0]!;
+  const working = cards.some((c) => busy.has(c.id));
+  const all = chosen.size === cards.length;
+
+  function openPicker() {
+    setChosen(new Set([active.id]));
+    setPicking(true);
+  }
+  function toggle(id: string) {
+    setChosen((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+  async function confirm() {
+    await onDismiss(cards.filter((c) => chosen.has(c.id)));
+    setPicking(false);
+  }
+
+  const tabs = (
+    <div className="position-tabs" role="tablist" aria-label={`${cards.length} positions at ${active.company}`}>
+      {cards.map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          role="tab"
+          aria-selected={c.id === active.id}
+          className={`position-tab${c.id === active.id ? " active" : ""}`}
+          title={c.title}
+          onClick={() => setActiveId(c.id)}
+        >
+          {c.matchScore !== null && <span className={`score s${Math.floor(c.matchScore / 25)}`}>{c.matchScore}</span>}
+          <span className="tab-title">{c.title}</span>
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <Card {...cardProps(active)} tabs={tabs} onDismiss={openPicker}>
+      {picking && (
+        <fieldset className="dismiss-picker">
+          <legend>Dismiss which positions?</legend>
+          {cards.map((c) => (
+            <label key={c.id}>
+              <input type="checkbox" checked={chosen.has(c.id)} onChange={() => toggle(c.id)} />
+              <span>{c.title}</span>
+            </label>
+          ))}
+          <div className="actions">
+            <button type="button" className="btn ghost" onClick={() => setChosen(all ? new Set() : new Set(cards.map((c) => c.id)))}>
+              {all ? "Select none" : "Select all"}
+            </button>
+            <button type="button" className="btn ghost" onClick={() => setPicking(false)}>
+              Cancel
+            </button>
+            <button type="button" className="btn primary" disabled={chosen.size === 0 || working} onClick={() => void confirm()}>
+              {all ? "Dismiss all" : `Dismiss ${chosen.size}`}
+            </button>
+          </div>
+        </fieldset>
+      )}
+    </Card>
   );
 }
 

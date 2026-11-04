@@ -155,9 +155,11 @@ describe("a Lever form in Chromium", () => {
     await prefill(session, sources(), cv);
 
     await session.page.click("#btn-submit");
-    await session.page.waitForTimeout(300);
+    await expect.poll(() => blocked.length).toBeGreaterThan(0);
     expect(posts).toEqual([]);
     expect(blocked[0]).toMatch(/^submit request/);
+    // The blocked submit lands on Chromium's error page; let that finish, or it cuts off the reload below.
+    await session.page.waitForURL((u) => u.protocol === "chrome-error:", { timeout: 5_000 }).catch(() => {});
 
     // A reloaded form's required fields are empty, so skip validation to show the POST now goes out.
     await session.page.goto(url);
