@@ -39,7 +39,7 @@ export const remotePreference = pgEnum("remote_preference", ["onsite", "hybrid",
 export const jobRemote = pgEnum("job_remote", ["onsite", "hybrid", "remote", "unknown"]);
 export const answerKind = pgEnum("answer_kind", ["text", "choice", "number", "date", "consent"]);
 export const documentKind = pgEnum("document_kind", ["cv", "cover_letter"]);
-export const agentRole = pgEnum("agent_role", ["extractor", "scout", "pen", "shipper"]);
+export const agentRole = pgEnum("agent_role", ["extractor", "scout", "pen", "shipper", "replies"]);
 export const runStatus = pgEnum("run_status", [
   "queued",
   "running",

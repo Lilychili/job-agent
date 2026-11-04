@@ -1,6 +1,6 @@
-// Read-only Gmail, for job alerts. Plain fetch keeps the token handling visible, as in the Claude client.
-// Google's scope can read the whole mailbox, so what is actually read is limited here, in code:
-// only job alerts from Indeed and LinkedIn, and nothing else is fetched or stored.
+// Read-only Gmail, for job alerts and replies. Plain fetch keeps the token handling visible, as in the Claude client.
+// Google's scope can read the whole mailbox, so what is actually read is limited here, in code: job alerts
+// from Indeed and LinkedIn, and mail that names a company the owner applied to, received since they applied.
 import type pg from "pg";
 import { ConfigError, decryptSecret, encryptionKeyFromEnv, encryptSecret } from "./secrets";
 
@@ -121,13 +121,19 @@ async function gmailGet<T>(url: string, accessToken: string, signal?: AbortSigna
   return (await res.json()) as T;
 }
 
-/** Recent alerts, newest first for each source. Null when Gmail isn't connected. Untrusted text. */
-export async function readAlertEmails(pool: pg.Pool, signal?: AbortSignal): Promise<AlertEmail[] | null> {
+async function accessTokenFor(pool: pg.Pool): Promise<string | null> {
   const refreshToken = await storedToken(pool);
   if (!refreshToken) return null;
   const { clientId, clientSecret } = credentials();
   const { access_token } = await tokenRequest({ refresh_token: refreshToken, client_id: clientId, client_secret: clientSecret, grant_type: "refresh_token" });
   if (!access_token) throw new GmailError("Google didn't give an access token.");
+  return access_token;
+}
+
+/** Recent alerts, newest first for each source. Null when Gmail isn't connected. Untrusted text. */
+export async function readAlertEmails(pool: pg.Pool, signal?: AbortSignal): Promise<AlertEmail[] | null> {
+  const access_token = await accessTokenFor(pool);
+  if (!access_token) return null;
 
   // One search per source, so a busy sender can't use up the other's share.
   const perSource = await Promise.all(
@@ -145,4 +151,59 @@ export async function readAlertEmails(pool: pg.Pool, signal?: AbortSignal): Prom
     }),
   );
   return perSource.flat().filter((e): e is AlertEmail => e !== null);
+}
+
+export interface ReplyTarget {
+  /** Whatever the caller keys its results by. */
+  id: string;
+  company: string;
+  /** Only mail received after this is read. */
+  since: Date;
+}
+
+export interface CompanyEmail {
+  /** Gmail's message id. */
+  id: string;
+  from: string;
+  subject: string;
+  receivedAt: Date;
+  html: string;
+}
+
+const MAX_EMAILS_PER_COMPANY = 6;
+const COMPANY_SEARCH_BATCH = 4;
+
+/** Gmail's search treats quotes and backslashes as syntax, and a company name has no use for them. */
+export const companySearchQuery = ({ company, since }: Pick<ReplyTarget, "company" | "since">) =>
+  `"${company.replace(/["\\]/g, " ").replace(/\s+/g, " ").trim()}" after:${Math.floor(since.getTime() / 1000)} -from:me`;
+
+/**
+ * Mail that names each company, received since the owner applied, newest first. Job alerts are left out.
+ * Null when Gmail isn't connected. Untrusted text: a company's name in a message doesn't make the message
+ * theirs, so the caller still has to judge it.
+ */
+export async function readCompanyEmails(pool: pg.Pool, targets: ReplyTarget[], signal?: AbortSignal): Promise<Map<string, CompanyEmail[]> | null> {
+  const access_token = await accessTokenFor(pool);
+  if (!access_token) return null;
+  const found = new Map<string, CompanyEmail[]>();
+  for (let i = 0; i < targets.length; i += COMPANY_SEARCH_BATCH) {
+    await Promise.all(
+      targets.slice(i, i + COMPANY_SEARCH_BATCH).map(async (target) => {
+        const query = new URLSearchParams({ q: companySearchQuery(target), maxResults: String(MAX_EMAILS_PER_COMPANY) });
+        const { messages } = await gmailGet<{ messages?: { id: string }[] }>(`${API}/messages?${query}`, access_token, signal);
+        const emails = await Promise.all(
+          (messages ?? []).map(async ({ id }): Promise<CompanyEmail | null> => {
+            const { payload, internalDate } = await gmailGet<{ payload?: MessagePart; internalDate?: string }>(`${API}/messages/${encodeURIComponent(id)}?format=full`, access_token, signal);
+            const header = (name: string) => payload?.headers?.find((h) => h.name.toLowerCase() === name)?.value ?? "";
+            const from = header("from");
+            const html = payload && !alertSource(from) ? messageBody(payload) : null;
+            const receivedAt = new Date(Number(internalDate));
+            return html && !Number.isNaN(receivedAt.getTime()) ? { id, from, subject: header("subject"), receivedAt, html } : null;
+          }),
+        );
+        found.set(target.id, emails.filter((e): e is CompanyEmail => e !== null).sort((a, b) => b.receivedAt.getTime() - a.receivedAt.getTime()));
+      }),
+    );
+  }
+  return found;
 }

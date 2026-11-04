@@ -15,6 +15,7 @@ export const QUEUES: Record<JobName, { expireInSeconds: number; retryLimit: numb
   [JOBS.shipperPrefill]: { expireInSeconds: 10 * 60, retryLimit: 0 },
   [JOBS.shipperResume]: { expireInSeconds: 10 * 60, retryLimit: 0 },
   [JOBS.shipperCaptureEvidence]: { expireInSeconds: 2 * 60, retryLimit: 2 },
+  [JOBS.repliesCheck]: { expireInSeconds: 5 * 60, retryLimit: 0 },
   [JOBS.heartbeat]: { expireInSeconds: 30, retryLimit: 0 },
 };
 

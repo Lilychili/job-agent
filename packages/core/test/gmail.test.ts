@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { alertSource, gmailAuthUrl, gmailConfigured, messageBody } from "../src/gmail";
+import { alertSource, companySearchQuery, gmailAuthUrl, gmailConfigured, messageBody } from "../src/gmail";
+
+describe("companySearchQuery", () => {
+  it("searches the exact company name after the date the owner applied, leaving out their own mail", () => {
+    expect(companySearchQuery({ company: "Acme Corp", since: new Date("2026-11-01T00:00:00Z") })).toBe('"Acme Corp" after:1793491200 -from:me');
+  });
+
+  it("keeps a company name from adding search syntax", () => {
+    const q = companySearchQuery({ company: 'Evil" OR from:boss\\', since: new Date(0) });
+    expect(q).toBe('"Evil OR from:boss" after:0 -from:me');
+  });
+});
 
 describe("alertSource", () => {
   it("goes by the address, not the display name", () => {

@@ -16,7 +16,7 @@ const EXPECTED_LEGAL: Record<string, Status[]> = {
   approve: ["crafted"],
   apply: ["approved"],
   resume: ["applying"],
-  markApplied: ["awaiting_submit"],
+  markApplied: ["approved", "awaiting_submit"],
   markReplied: ["applied"],
   markInterview: ["applied", "replied"],
   markRejected: ["applied", "replied", "interview"],
@@ -91,7 +91,7 @@ describe("board helpers", () => {
     expect(ownerActions("crafting")).toEqual(["dismiss"]);
     expect(ownerActions("shortlisted")).toEqual(["dismiss", "craft"]);
     expect(ownerActions("crafted")).toEqual(["unCraft", "approve"]);
-    expect(ownerActions("approved")).toEqual(["unApprove", "apply"]);
+    expect(ownerActions("approved")).toEqual(["unApprove", "apply", "markApplied"]);
   });
 
   it("puts transient states and drafts in their predecessor's column", () => {

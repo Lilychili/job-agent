@@ -45,6 +45,8 @@ export interface BoardData {
   /** Claude is scoring the open cards again after the Profile's facts changed. */
   rescoring: boolean;
   lastSearch: { ok: boolean; message: string } | null;
+  repliesRunning: boolean;
+  lastReplies: { ok: boolean; message: string } | null;
   workerLastSeenAt: string | null;
 }
 
@@ -53,6 +55,13 @@ function describeSearch(run: { status: string; error: string | null; output: Rec
   if (run.status !== "succeeded" || typeof run.output?.inserted !== "number") return null;
   const added = run.output.inserted;
   return { ok: true, message: `Last search added ${added} ${added === 1 ? "job" : "jobs"}.` };
+}
+
+function describeReplies(run: { status: string; error: string | null; output: Record<string, unknown> | null }): BoardData["lastReplies"] {
+  if (run.status === "failed") return { ok: false, message: `Reply check failed: ${run.error ?? "unknown error"}` };
+  const { replied, rejected } = run.output ?? {};
+  if (run.status !== "succeeded" || typeof replied !== "number" || typeof rejected !== "number") return null;
+  return { ok: true, message: replied + rejected === 0 ? "No new replies." : `Replies: ${replied} replied, ${rejected} rejected.` };
 }
 
 // The card never shows the posting text, which is most of a job row.
@@ -86,7 +95,7 @@ export async function loadBoard(): Promise<BoardData> {
     .orderBy(desc(job.matchScore), desc(application.updatedAt));
 
   const ids = rows.map((r) => r.app.id);
-  const [runs, openBlockers, intoCrafting, withDocuments, [latestSearch], [cfg], [owner]] = await Promise.all([
+  const [runs, openBlockers, intoCrafting, withDocuments, [latestSearch], [latestReplies], [cfg], [owner]] = await Promise.all([
     ids.length
       ? db
           .select()
@@ -110,6 +119,12 @@ export async function loadBoard(): Promise<BoardData> {
       .select({ status: agentRun.status, error: agentRun.error, output: agentRun.output })
       .from(agentRun)
       .where(eq(agentRun.jobName, JOBS.scoutSearch))
+      .orderBy(desc(agentRun.createdAt))
+      .limit(1),
+    db
+      .select({ status: agentRun.status, error: agentRun.error, output: agentRun.output })
+      .from(agentRun)
+      .where(eq(agentRun.role, "replies"))
       .orderBy(desc(agentRun.createdAt))
       .limit(1),
     db.select({ workerLastSeenAt: settings.workerLastSeenAt }).from(settings).limit(1),
@@ -171,6 +186,8 @@ export async function loadBoard(): Promise<BoardData> {
     searchRunning: latestSearch?.status === "queued" || latestSearch?.status === "running",
     rescoring: rescoreRuns.length > 0,
     lastSearch: latestSearch ? describeSearch(latestSearch) : null,
+    repliesRunning: latestReplies?.status === "queued" || latestReplies?.status === "running",
+    lastReplies: latestReplies ? describeReplies(latestReplies) : null,
     workerLastSeenAt: cfg?.workerLastSeenAt?.toISOString() ?? null,
   };
 }
