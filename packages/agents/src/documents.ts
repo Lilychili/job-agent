@@ -5,7 +5,7 @@ import path from "node:path";
 import { eq, max } from "drizzle-orm";
 import type { Browser } from "playwright";
 import { resolveDataPath, sha256, type CoreContext } from "@jobagent/core";
-import { document, withTx, type Contact, type CvContent, type Db, type LetterContent, type ProfileFact } from "@jobagent/db";
+import { document, withTx, type Contact, type CvContent, type Db, type DocumentStyle, type LetterContent, type ProfileFact } from "@jobagent/db";
 import { cvFactIds, letterFactIds, type PenDraft } from "./pen";
 import { renderPdfs } from "./pdf";
 import { cvHtml, letterHtml } from "./templates";
@@ -20,20 +20,21 @@ type Kind = "cv" | "cover_letter";
 
 export interface PrintedDocument {
   kind: Kind;
+  style: DocumentStyle;
   html: string;
   content: CvContent | LetterContent;
   factIds: string[];
   pdf: Buffer;
 }
 
-export function documentHtml(kind: Kind, content: CvContent | LetterContent, p: DocumentProfile): string {
-  return kind === "cv" ? cvHtml(content as CvContent, p.contact, p.facts) : letterHtml(content as LetterContent, p.contact);
+export function documentHtml(kind: Kind, content: CvContent | LetterContent, p: DocumentProfile, style: DocumentStyle = "color"): string {
+  return kind === "cv" ? cvHtml(content as CvContent, p.contact, p.facts, style) : letterHtml(content as LetterContent, p.contact, style);
 }
 
-export async function printDocuments(draft: PenDraft, p: DocumentProfile, browser?: Browser): Promise<PrintedDocument[]> {
+export async function printDocuments(draft: PenDraft, p: DocumentProfile, style: DocumentStyle, browser?: Browser): Promise<PrintedDocument[]> {
   const docs = [
-    { kind: "cv" as const, html: documentHtml("cv", draft.cv, p), content: draft.cv, factIds: cvFactIds(draft.cv) },
-    { kind: "cover_letter" as const, html: documentHtml("cover_letter", draft.coverLetter, p), content: draft.coverLetter, factIds: letterFactIds(draft.coverLetter) },
+    { kind: "cv" as const, style, html: documentHtml("cv", draft.cv, p, style), content: draft.cv, factIds: cvFactIds(draft.cv) },
+    { kind: "cover_letter" as const, style, html: documentHtml("cover_letter", draft.coverLetter, p, style), content: draft.coverLetter, factIds: letterFactIds(draft.coverLetter) },
   ];
   const pdfs = await renderPdfs(docs.map((d) => d.html), browser);
   return docs.map((d, i) => ({ ...d, pdf: pdfs[i]! }));
@@ -69,7 +70,7 @@ export async function withDocuments<T>(
 async function saveDocuments(db: Db, ctx: Pick<CoreContext, "dataDir">, opts: SaveDocuments, written: string[]): Promise<number> {
   const [{ v } = { v: 0 }] = await db.select({ v: max(document.version) }).from(document).where(eq(document.applicationId, opts.applicationId));
   const version = (v ?? 0) + 1;
-  for (const { kind, html, content, factIds, pdf } of opts.documents) {
+  for (const { kind, style, html, content, factIds, pdf } of opts.documents) {
     const rel = path.join("documents", opts.applicationId, `${kind}-v${version}.pdf`);
     const full = resolveDataPath(ctx, rel);
     await mkdir(path.dirname(full), { recursive: true });
@@ -79,6 +80,7 @@ async function saveDocuments(db: Db, ctx: Pick<CoreContext, "dataDir">, opts: Sa
       applicationId: opts.applicationId,
       kind,
       version,
+      style,
       htmlSource: html,
       content,
       pdfPath: rel,

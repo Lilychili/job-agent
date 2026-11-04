@@ -72,7 +72,7 @@ export function SettingsForm({ initial, encryptionReady }: { initial: View; encr
     if (typed === null) return;
     const res = await api("/api/data/delete", "POST", { confirm: typed });
     if (!res.ok) return setDeleteError(res.error);
-    window.location.href = "/setup";
+    window.location.href = "/welcome";
   }
 
   async function saveModel(e: React.FormEvent) {

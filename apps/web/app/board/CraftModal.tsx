@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { factSource, requirementFacts, unsupportedNumber } from "@jobagent/agents/citations";
-import type { CitedText, CvContent, JobRequirement, LetterContent, ProfileFact } from "@jobagent/db";
+import type { CitedText, CvContent, DocumentStyle, JobRequirement, LetterContent, ProfileFact } from "@jobagent/db";
 import { api } from "@/lib/api";
 import type { BoardCard } from "@/lib/board";
 import type { CraftData } from "@/lib/documents";
@@ -10,6 +10,11 @@ import { PdfPages } from "./PdfPages";
 
 type Kind = "cv" | "cover_letter";
 const PREVIEW_DELAY_MS = 800;
+
+const STYLES: { value: DocumentStyle; label: string; title: string }[] = [
+  { value: "color", label: "Colour", title: "Headings, headline and employers in a quiet blue" },
+  { value: "mono", label: "Black", title: "Black and grey only" },
+];
 
 /**
  * The Craft modal: Claude's draft on the left, the PDF it prints to on the right. Opens as soon as
@@ -34,6 +39,7 @@ export function CraftModal({
   const [cv, setCv] = useState<CvContent | null>(null);
   const [letter, setLetter] = useState<LetterContent | null>(null);
   const [tab, setTab] = useState<Kind>("cv");
+  const [style, setStyle] = useState<DocumentStyle>("color");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [saving, setSaving] = useState<"save" | "approve" | null>(null);
@@ -54,6 +60,7 @@ export function CraftModal({
       setData(res.data);
       setCv(res.data.cv?.content ?? null);
       setLetter(res.data.coverLetter?.content ?? null);
+      setStyle(res.data.cv?.style ?? res.data.defaultStyle);
     });
     return () => {
       live = false;
@@ -61,10 +68,15 @@ export function CraftModal({
   }, [card.id, card.status, writing]);
 
   const facts = useMemo(() => new Map((data?.facts ?? []).map((f) => [f.id, f])), [data]);
-  const dirty = !!data && (JSON.stringify(cv) !== JSON.stringify(data.cv?.content ?? null) || JSON.stringify(letter) !== JSON.stringify(data.coverLetter?.content ?? null));
+  const savedStyle = data?.cv?.style ?? data?.defaultStyle;
+  const dirty =
+    !!data &&
+    (JSON.stringify(cv) !== JSON.stringify(data.cv?.content ?? null) ||
+      JSON.stringify(letter) !== JSON.stringify(data.coverLetter?.content ?? null) ||
+      style !== savedStyle);
   const editable = !writing && !!data?.editable && !!cv && !!letter;
   const saved = tab === "cv" ? data?.cv : data?.coverLetter;
-  const preview = usePreview(card.id, tab, writing || !cv || !letter ? null : { cv, coverLetter: letter }, dirty ? null : (saved?.id ?? null));
+  const preview = usePreview(card.id, tab, style, writing || !cv || !letter ? null : { cv, coverLetter: letter }, dirty ? null : (saved?.id ?? null));
 
   function close() {
     if (dirty && !window.confirm("Close without keeping your changes?")) return;
@@ -78,7 +90,7 @@ export function CraftModal({
     setSaving(mode);
     setActionError(null);
     // An unchanged Crafted document needs no save: approving locks the saved version.
-    const saved = card.status === "drafted" || dirty ? await api(`/api/applications/${card.id}/documents`, "POST", { cv, coverLetter: letter }) : null;
+    const saved = card.status === "drafted" || dirty ? await api(`/api/applications/${card.id}/documents`, "POST", { cv, coverLetter: letter, style }) : null;
     const res = saved && !saved.ok ? saved : andApprove ? await approve() : saved;
     setSaving(null);
     await onChanged();
@@ -142,12 +154,26 @@ export function CraftModal({
           </button>
         </div>
 
-        <div className="craft-tabs" role="tablist">
-          {(["cv", "cover_letter"] as const).map((k) => (
-            <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? "active" : ""} onClick={() => setTab(k)}>
-              {k === "cv" ? "CV" : "Cover letter"}
-            </button>
-          ))}
+        <div className="craft-bar">
+          <div className="craft-tabs" role="tablist">
+            {(["cv", "cover_letter"] as const).map((k) => (
+              <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? "active" : ""} onClick={() => setTab(k)}>
+                {k === "cv" ? "CV" : "Cover letter"}
+              </button>
+            ))}
+          </div>
+          {!writing && cv && letter && (
+            <div className="style-pick" role="radiogroup" aria-label="Document style">
+              <span className="hint">Style</span>
+              {STYLES.map((o) => (
+                <label key={o.value} className={style === o.value ? "on" : ""} title={o.title}>
+                  <input type="radio" name="doc-style" className="sr-only" checked={style === o.value} disabled={!editable} onChange={() => setStyle(o.value)} />
+                  <span className={`style-swatch ${o.value}`} aria-hidden />
+                  {o.label}
+                </label>
+              ))}
+            </div>
+          )}
         </div>
 
         {writing ? (
@@ -236,9 +262,9 @@ export function CraftModal({
  * The PDF on the right. Unchanged documents show the saved file; edits are printed by the server a
  * moment after typing stops.
  */
-function usePreview(appId: string, kind: Kind, draft: { cv: CvContent; coverLetter: LetterContent } | null, savedId: string | null) {
+function usePreview(appId: string, kind: Kind, style: DocumentStyle, draft: { cv: CvContent; coverLetter: LetterContent } | null, savedId: string | null) {
   const [state, setState] = useState<{ pdf: ArrayBuffer | null; busy: boolean; error: string | null }>({ pdf: null, busy: false, error: null });
-  const key = draft ? JSON.stringify([kind, savedId ?? draft]) : null;
+  const key = draft ? JSON.stringify([kind, savedId ?? [style, draft]]) : null;
 
   useEffect(() => {
     if (!key || !draft) return;
@@ -252,7 +278,7 @@ function usePreview(appId: string, kind: Kind, draft: { cv: CvContent; coverLett
             : await fetch(`/api/applications/${appId}/preview`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ kind, ...draft }),
+                body: JSON.stringify({ kind, style, ...draft }),
                 signal: ctrl.signal,
               });
           if (!res.ok) {
@@ -271,7 +297,7 @@ function usePreview(appId: string, kind: Kind, draft: { cv: CvContent; coverLett
       clearTimeout(timer);
       ctrl.abort();
     };
-    // `key` stands for `draft`, `kind` and `savedId`.
+    // `key` stands for `draft`, `kind`, `style` and `savedId`.
   }, [key, appId]);
 
   return state;

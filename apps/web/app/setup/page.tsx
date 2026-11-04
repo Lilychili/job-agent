@@ -44,7 +44,14 @@ export default async function SetupPage() {
   const { ready, started } = setupProgress(s);
 
   return (
-    <PageShell title="Set up" lead="Four short steps. You can do them in any order and come back to change anything.">
+    <PageShell title="Set up" lead="Four short steps. Do them in any order and come back to change anything, or let the guided setup walk you through.">
+      {!ready && (
+        <div>
+          <Link className="btn primary" href="/welcome">
+            Start guided setup →
+          </Link>
+        </div>
+      )}
       <ol className="steps">
         {steps.map((st, i) => (
           <li key={st.href} className={`panel step${st.done ? " done" : ""}`}>

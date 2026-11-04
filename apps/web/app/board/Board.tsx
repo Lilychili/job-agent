@@ -90,7 +90,7 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
     <div className="shell">
       <TopBar />
       {setup && (
-        <Link className="setup-banner" href="/setup">
+        <Link className="setup-banner" href="/welcome">
           {setup.done} of {setup.total} setup steps done. Continue setup <span aria-hidden>→</span>
         </Link>
       )}
@@ -144,9 +144,12 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
         {COLUMNS.map((col) => {
           const cards = byColumn(col.id);
           return (
-            <section className="column" key={col.id} aria-labelledby={`col-${col.id}`}>
+            <section className="column" data-col={col.id} key={col.id} aria-labelledby={`col-${col.id}`}>
               <h2 id={`col-${col.id}`}>
-                {col.title}
+                <span className="col-title">
+                  <span className="col-dot" aria-hidden />
+                  {col.title}
+                </span>
                 <span className="count">{cards.length}</span>
               </h2>
               <div className="cards">

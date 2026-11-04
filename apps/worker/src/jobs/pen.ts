@@ -6,7 +6,7 @@
 import { eq } from "drizzle-orm";
 import { addUsage, craftDocuments, NO_USAGE, printDocuments, readRequirements, withDocuments } from "@jobagent/agents";
 import { transitionInTx } from "@jobagent/core";
-import { answerBank, application, createDb, job, profile } from "@jobagent/db";
+import { answerBank, application, createDb, job, profile, settings } from "@jobagent/db";
 import { claudeFromSettings, saveUsage } from "../claude";
 import type { Outcome, RunHelpers } from "../runner";
 import { errorText } from "../util";
@@ -50,7 +50,9 @@ export async function penCraft({ ctx, run, log, signal }: RunHelpers): Promise<O
   await saveUsage(ctx, run.id, { model, promptVersion, usage: addUsage(usage, penUsage) });
 
   await log("Printing the PDFs…");
-  const documents = await printDocuments(draft, p);
+  // Drafts get the look the owner last chose in the Craft modal.
+  const [cfg] = await db.select({ style: settings.documentStyle }).from(settings).limit(1);
+  const documents = await printDocuments(draft, p, cfg?.style ?? "color");
   // The status change goes first: it locks the card, and refuses if it was dismissed meanwhile, so
   // neither document is saved.
   const version = await withDocuments(ctx, async (tx, client, save) => {

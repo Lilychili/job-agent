@@ -190,6 +190,18 @@ describe("craft", () => {
     const [run] = await env.db.select().from(agentRun).where(eq(agentRun.id, r2.runId!));
     expect(run).toMatchObject({ status: "failed", error: "Bad JSON" });
   });
+
+  it("clears the error when the card moves to another column", async () => {
+    const crafted = await makeApp(env, "crafted");
+    await env.db.update(application).set({ lastError: "Bad JSON" }).where(eq(application.id, crafted.appId));
+    await transition(env.ctx, crafted.appId, "unCraft");
+    expect(await status(crafted.appId)).toMatchObject({ status: "shortlisted", lastError: null });
+
+    const approved = await makeApp(env, "approved");
+    await env.db.update(application).set({ lastError: "Form changed" }).where(eq(application.id, approved.appId));
+    await transition(env.ctx, approved.appId, "markApplied");
+    expect(await status(approved.appId)).toMatchObject({ status: "applied", lastError: null });
+  });
 });
 
 describe("approve", () => {

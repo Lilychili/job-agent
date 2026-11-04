@@ -91,6 +91,10 @@ export interface CitedText {
   text: string;
   factIds: string[];
 }
+/** How a CV and cover letter look: accents in colour, or black only. */
+export const DOCUMENT_STYLES = ["color", "mono"] as const;
+export type DocumentStyle = (typeof DOCUMENT_STYLES)[number];
+
 export interface CvContent {
   summary: CitedText;
   experience: { roleFactId: string; bullets: CitedText[] }[];
@@ -328,6 +332,7 @@ export const document = pgTable(
     profileVersion: integer().notNull(),
     agentRunId: uuid(),
     approvedAt: timestamp({ withTimezone: true }),
+    style: text().$type<DocumentStyle>().notNull().default("color"),
   },
   (t) => [uniqueIndex("document_app_kind_version_uq").on(t.applicationId, t.kind, t.version)],
 );
@@ -377,6 +382,8 @@ export const settings = pgTable("settings", {
   encryptedGmailToken: text(),
   defaultModel: text(),
   workerLastSeenAt: timestamp({ withTimezone: true }),
+  // The look new CVs and cover letters get; the Craft modal changes it.
+  documentStyle: text().$type<DocumentStyle>().notNull().default("color"),
 });
 
 export type ApplicationStatus = (typeof applicationStatus.enumValues)[number];

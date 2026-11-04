@@ -159,9 +159,15 @@ describe("templates", () => {
 
   it("takes the role's title, employer and dates from the Profile", () => {
     const html = cvHtml(draft.cv, contact, facts);
-    expect(html).toContain("Software Engineer, Acme");
+    expect(html).toContain("Software Engineer · <span class=\"org\">Acme</span>");
     expect(html).toContain("2019-03 – 2023-01");
-    expect(html).toContain("BSc Computer Science, UPC");
+    expect(html).toContain("BSc Computer Science · <span class=\"org\">UPC</span>");
+  });
+
+  it("prints in colour unless asked for black", () => {
+    expect(cvHtml(draft.cv, contact, facts)).toContain('data-style="color"');
+    expect(cvHtml(draft.cv, contact, facts, "mono")).toContain('data-style="mono"');
+    expect(letterHtml(draft.coverLetter, contact, "mono")).toContain('data-style="mono"');
   });
 
   it("escapes everything that isn't template", () => {
