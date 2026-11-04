@@ -109,28 +109,34 @@ export function Board({ initial, setup }: { initial: BoardData; setup: { done: n
         </div>
         <div className="actions">
           <AddJobDialog onAdded={refetch} />
-          <button className="btn" disabled={data.repliesRunning || busy.has("replies")} onClick={() => void post("replies", "/api/replies")}>
-            {data.repliesRunning ? (
-              <>
+          {data.repliesRunId ? (
+            <span className="running">
+              <span className="hint">
                 <Spinner /> Checking replies…
-              </>
-            ) : (
-              "Check replies"
-            )}
-          </button>
-          <button
-            className="btn primary"
-            disabled={data.searchRunning || busy.has("search")}
-            onClick={() => void post("search", "/api/search")}
-          >
-            {data.searchRunning ? (
-              <>
+              </span>
+              <button className="btn" disabled={busy.has("replies")} onClick={() => void post("replies", `/api/runs/${data.repliesRunId}/stop`)}>
+                Stop
+              </button>
+            </span>
+          ) : (
+            <button className="btn" disabled={busy.has("replies")} onClick={() => void post("replies", "/api/replies")}>
+              Check replies
+            </button>
+          )}
+          {data.searchRunId ? (
+            <span className="running">
+              <span className="hint">
                 <Spinner /> Searching…
-              </>
-            ) : (
-              "Search"
-            )}
-          </button>
+              </span>
+              <button className="btn" disabled={busy.has("search")} onClick={() => void post("search", `/api/runs/${data.searchRunId}/stop`)}>
+                Stop
+              </button>
+            </span>
+          ) : (
+            <button className="btn primary" disabled={busy.has("search")} onClick={() => void post("search", "/api/search")}>
+              Search
+            </button>
+          )}
         </div>
       </div>
 

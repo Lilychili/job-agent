@@ -19,7 +19,7 @@
 ```
 ┌────────────── web (Next.js) ──────────────┐        ┌──────────── worker (Node) ────────────┐
 │ UI routes, API route handlers             │        │ pg-boss consumers                      │
-│ transition() → insert job into pg-boss ───┼──PG───▶│ scout.search  pen.craft  shipper.*     │
+│ transition() → insert job into pg-boss ───┼──PG───▶│ scout.*  pen.craft  shipper.*  replies │
 │ /api/events (SSE) ◀── LISTEN app_events ──┼──PG◀───│ NOTIFY app_events on every change      │
 └───────────────────────────────────────────┘        └────────────────────────────────────────┘
                                    Postgres (data + queue + LISTEN/NOTIFY)
@@ -32,30 +32,34 @@ The worker publishes progress with Postgres `NOTIFY`; the SSE endpoint `LISTEN`s
 ```
 apps/
   web/                      # Next.js
-    app/(onboarding)/...
-    app/board/...
-    app/review/[applicationId]/...
-    app/questions/...
-    app/settings/...
+    app/setup/              # onboarding checklist
+    app/profile/...         # Profile editor; looking-for/ = Preferences
+    app/board/...           # board, Craft modal, PDF preview, prefill review
+    app/questions/...       # AnswerBank and Blockers inbox
+    app/settings/...        # Claude provider, Gmail, export / delete
     app/api/events/route.ts # SSE
+    proxy.ts                # refuses requests that don't come from this machine
   worker/
-    src/index.ts            # pg-boss bootstrap
-    src/jobs/scout.ts
+    src/index.ts            # pg-boss bootstrap, heartbeat, stale-run recovery
+    src/runner.ts           # claim, time limit, Stop, failure rollback for every job
+    src/jobs/extractor.ts   # CV -> draft Profile
+    src/jobs/scout.ts       # Discover + boards + alerts -> scored jobs
+    src/jobs/rescore.ts
     src/jobs/pen.ts
-    src/jobs/shipper.ts
+    src/jobs/locate.ts      # find the application form after Approve
+    src/jobs/shipper.ts     # prefill, resume, capture evidence
+    src/jobs/replies.ts     # Gmail replies -> Replied / Rejected
 packages/
   db/                       # schema, migrations, typed queries
-  core/                     # state machine, transition(), guards
+  core/                     # state machine, transition(), guards, runs, Gmail, secret encryption
+  queue/                    # pg-boss setup, per-queue time limits
   agents/                   # Claude client wrapper, usage logging, structured-output schemas;
                             # Pen's HTML templates, render-to-PDF, metadata strip, document saving
-  ats/                      # Greenhouse, Lever, Ashby clients (pure HTTP, no LLM)
+  ats/                      # Greenhouse, Lever, Ashby clients and form finding (pure HTTP, no LLM)
   forms/                    # Playwright form-filling adapters per ATS; FormSession enforces the
                             # host lock, the submit block and the hash check in code
-  security/                 # untrusted-content wrapping, secret encryption
-agents/
-  scout/agent.md            # versioned prompt files
-  pen/agent.md
-  shipper/agent.md
+agents/                     # versioned prompt files, one per role:
+  extractor/ discover/ careers/ alerts/ scout/ pen/ shipper/ replies/
   shared/security-rules.md
 ```
 
@@ -72,8 +76,10 @@ agents/
 
 - Jobs are idempotent: keyed by `applicationId + action + version`. Re-delivery of the same job is a no-op.
 - Checkpoints stored on `AgentRun.checkpoint` (JSON) so paused runs can resume.
-- Timeouts: Scout 5 min, Pen 3 min, Shipper 10 min (finding the form: 4 min). On timeout → run failed, card returns to previous status with error.
-- Crash recovery: a dead worker can't time anything out, so at startup and with every heartbeat the worker fails runs left `running` past their limit (`failStaleRuns`). Otherwise the one-active-run rule would block the card for good.
+- Timeouts (`QUEUES` in `packages/queue`): Extractor 2 min, Search 5 min, Rescore 10 min, Pen 3 min, finding the form 4 min, Shipper 10 min, Replies 5 min. At the limit the runner aborts the handler's AbortSignal → run failed, card returns to previous status with error.
+- Crash recovery: at startup and with every heartbeat the worker fails runs left `running` past their limit (`failStaleRuns`). Otherwise the one-active-run rule would block the card (or Search, or Check replies) for good.
+- Worker offline: a stopped worker can't time anything out, and nothing claims a queued run. So whenever the board loads, the web app fails every queued or running run older than 150 s if the worker hasn't sent a heartbeat for 150 s (`failRunsWithoutWorker`), with an error that says to start it.
+- Stop: Search and Check replies can be stopped from the board (`stopRun`). The run is closed as failed with "Stopped by you."; the worker hears the `run` notification and aborts that handler's signal. A card's run is stopped by Dismiss instead.
 
 ## File storage
 

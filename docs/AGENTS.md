@@ -56,7 +56,7 @@ Rule of thumb: **if a rule can be enforced in code, enforce it in code and also 
 - **Owner edits (Craft modal):** the owner may change, add, reorder and remove pieces. Code still rejects citations of unknown facts; the modal warns, without blocking, about pieces that cite nothing or state a number their facts don't. Saved edits go through the same template, printing and hashing (`packages/agents/src/documents.ts`).
 
 ## Replies — read employers' emails
-- **API:** forced tool call, or the CLI with `--json-schema`, as Settings picks. No tools. Prompt: `agents/replies/agent.md`. Started by the board's **Check replies** button (`POST /api/replies`).
+- **API:** forced tool call, or the CLI with `--json-schema`, as Settings picks. No tools. Prompt: `agents/replies/agent.md`. Started by the board's **Check replies** button (`POST /api/replies`). It has a 5-minute limit, and the board's **Stop** ends it: no further card moves once stopped.
 - **Input:** for each Applied or Replied card, up to six emails that name its company, received since the owner applied (Gmail search `"Company" after:<applied> -from:me`, job alerts left out), wrapped as untrusted.
 - **Output (JSON):** `{ emails: [{ number, kind }] }`, kind being `reply`, `rejection`, `acknowledgement` or `unrelated`.
 - **Code after the run:** a missing or odd label counts as unrelated, and so does an email that never names the company. The newest `reply` or `rejection` decides: Applied → Replied on a reply, Applied or Replied → Rejected on a rejection. Receipts and noise never move a card. The move and a `email` evidence row (message id, sender, subject, date) are saved in one transaction, and a message with evidence is not read again, so a rerun or restart changes nothing.
