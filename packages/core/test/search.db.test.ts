@@ -20,6 +20,14 @@ const found = (over: Partial<FoundJob> = {}): FoundJob => ({
   ...over,
 });
 
+/** What Dismiss leaves behind: the job archived, and the event that dates it. */
+async function dismissAll() {
+  await env.db.update(job).set({ archived: true });
+  for (const app of await env.db.select().from(application)) {
+    await env.db.insert(applicationEvent).values({ applicationId: app.id, action: "dismiss", fromStatus: "found", toStatus: "archived", actorType: "owner" });
+  }
+}
+
 let env: TestEnv;
 let runId: string;
 beforeAll(async () => {
@@ -106,9 +114,17 @@ describe("unknownPostings", () => {
     expect(await unknownPostings(env.pool, [one, two], "key")).toEqual([one, two]);
   });
 
-  it("keeps a dismissed job out by its link, but lets a new opening with the same title in", async () => {
+  it("keeps a job dismissed in the last three months out, by its link and by company and title", async () => {
     await addFoundJobs(env.pool, [found()], runId);
-    await env.db.update(job).set({ archived: true });
+    await dismissAll();
+    const reposted = found({ sourceUrl: "https://job-boards.greenhouse.io/acme/jobs/9" });
+    expect(await unknownPostings(env.pool, [found(), reposted], "key")).toEqual([]);
+  });
+
+  it("lets a new opening with a dismissed job's title in after three months, never its old link", async () => {
+    await addFoundJobs(env.pool, [found()], runId);
+    await dismissAll();
+    await env.pool.query("update application_event set at = now() - interval '91 days' where to_status = 'archived'");
     const reopened = found({ sourceUrl: "https://job-boards.greenhouse.io/acme/jobs/9" });
     expect(await unknownPostings(env.pool, [found(), reopened], "key")).toEqual([reopened]);
   });

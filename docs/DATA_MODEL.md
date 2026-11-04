@@ -73,7 +73,9 @@ Postings Scout dropped. Only the link and score are kept, so Search doesn't pay 
 | formCheckedAt | timestamp? | |
 | requirementsProfileVersion | int? | The Profile version the requirements were matched against. Pen matches them again when the Profile has changed since. |
 
-**Dedupe:** unique index on `canonicalUrl`, plus unique index on `(companyNorm, titleNorm)` among non-archived jobs. Insert with `ON CONFLICT DO NOTHING`.
+**Dedupe:** unique index on `canonicalUrl`, plus unique index on `(companyNorm, titleNorm)` among non-archived jobs. Insert with `ON CONFLICT DO NOTHING`. Before scoring, Search also skips a posting whose company and title match a job dismissed in the last 90 days (`DISMISSED_DAYS`, dated by its `archived` event), so a repost under a new link stays out; a dismissed job's own link stays out for good.
+
+**Board grouping:** in Found, positions from one company (`companyNorm`) found less than 30 days apart share one card with a tab per position (`packages/core/src/group.ts`). Dismiss on that card asks which positions to dismiss.
 
 ## Application
 | Field | Type |

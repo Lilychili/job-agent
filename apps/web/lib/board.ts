@@ -10,6 +10,8 @@ export interface BoardCard {
   status: Status;
   column: ColumnId;
   company: string;
+  /** The normalized company name: Found cards from one company share a card. */
+  companyKey: string;
   title: string;
   location: string | null;
   remote: string;
@@ -36,6 +38,8 @@ export interface BoardCard {
   form: { url: string; ats: string; title: string } | "none" | null;
   /** The prefilled form is open in the Shipper window, so Show form can bring it forward. */
   formWindowOpen: boolean;
+  /** When the job was found. */
+  foundAt: string;
   updatedAt: string;
 }
 
@@ -164,6 +168,7 @@ export async function loadBoard(): Promise<BoardData> {
       status,
       column,
       company: j.company,
+      companyKey: j.companyNorm,
       title: j.title,
       location: j.location,
       remote: j.remote,
@@ -184,6 +189,7 @@ export async function loadBoard(): Promise<BoardData> {
       form: j.formUrl && j.formAts ? { url: j.formUrl, ats: j.formAts, title: j.formTitle ?? j.title } : j.formVia === "none" ? "none" : null,
       formWindowOpen: app.formWindowOpen,
       approvedDocuments: app.approvedCvDocId && SHOWS_APPROVED_DOCUMENTS.includes(status) ? { cv: app.approvedCvDocId, coverLetter: app.approvedLetterDocId } : null,
+      foundAt: j.createdAt.toISOString(),
       updatedAt: app.updatedAt.toISOString(),
     });
   }

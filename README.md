@@ -123,7 +123,7 @@ pnpm typecheck
 pnpm lint
 ```
 
-The DB tests use `TEST_DATABASE_URL` and truncate it on every test. CI runs all of this on every pull request ([ci.yml](.github/workflows/ci.yml)).
+The DB tests connect through `TEST_DATABASE_URL`. Each test file runs in a database of its own, copied from a migrated template, and dropped when the file ends. So files run in parallel, and test runs from other checkouts on the same Postgres don't collide. CI runs all of this on every pull request ([ci.yml](.github/workflows/ci.yml)).
 
 ## What's technically interesting?
 
