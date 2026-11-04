@@ -1,9 +1,9 @@
 import "server-only";
 import { and, desc, eq, getTableColumns, inArray, isNotNull, isNull, ne, notInArray } from "drizzle-orm";
 import { requirementFacts } from "@jobagent/agents/citations";
-import { ACTIVE_RUN_STATUSES, columnFor, JOBS, ownerActions, RULES, SHOWS_APPROVED_DOCUMENTS, type Action, type ColumnId, type Status } from "@jobagent/core";
+import { ACTIVE_RUN_STATUSES, columnFor, failRunsWithoutWorker, JOBS, STOPPED_ERROR, ownerActions, RULES, SHOWS_APPROVED_DOCUMENTS, type Action, type ColumnId, type Status } from "@jobagent/core";
 import { agentRun, application, applicationEvent, blocker, document, job, profile, settings } from "@jobagent/db";
-import { getDb } from "./server";
+import { getCtx, getDb } from "./server";
 
 export interface BoardCard {
   id: string;
@@ -42,15 +42,19 @@ export interface BoardCard {
 export interface BoardData {
   cards: BoardCard[];
   searchRunning: boolean;
+  /** The queued or running Search, so the board can stop it. */
+  searchRunId: string | null;
   /** Claude is scoring the open cards again after the Profile's facts changed. */
   rescoring: boolean;
   lastSearch: { ok: boolean; message: string } | null;
   repliesRunning: boolean;
+  repliesRunId: string | null;
   lastReplies: { ok: boolean; message: string } | null;
   workerLastSeenAt: string | null;
 }
 
 function describeSearch(run: { status: string; error: string | null; output: Record<string, unknown> | null }): BoardData["lastSearch"] {
+  if (run.status === "failed" && run.error === STOPPED_ERROR) return { ok: true, message: "Search stopped." };
   if (run.status === "failed") return { ok: false, message: `Search failed: ${run.error ?? "unknown error"}` };
   if (run.status !== "succeeded" || typeof run.output?.inserted !== "number") return null;
   const added = run.output.inserted;
@@ -58,6 +62,7 @@ function describeSearch(run: { status: string; error: string | null; output: Rec
 }
 
 function describeReplies(run: { status: string; error: string | null; output: Record<string, unknown> | null }): BoardData["lastReplies"] {
+  if (run.status === "failed" && run.error === STOPPED_ERROR) return { ok: true, message: "Reply check stopped." };
   if (run.status === "failed") return { ok: false, message: `Reply check failed: ${run.error ?? "unknown error"}` };
   const { replied, rejected } = run.output ?? {};
   if (run.status !== "succeeded" || typeof replied !== "number" || typeof rejected !== "number") return null;
@@ -87,6 +92,8 @@ function staleRequirements(reqs: { factIds: string[]; closest?: string[] }[] | n
 
 export async function loadBoard(): Promise<BoardData> {
   const db = getDb();
+  // With the worker down nothing would ever end a queued or running run, and the board would spin for good.
+  await failRunsWithoutWorker(await getCtx());
   const rows = await db
     .select({ app: application, job: jobColumns })
     .from(application)
@@ -116,13 +123,13 @@ export async function loadBoard(): Promise<BoardData> {
     // Only documents the Craft modal can show: ones saved before M3 have no content.
     ids.length ? db.selectDistinct({ applicationId: document.applicationId }).from(document).where(and(inArray(document.applicationId, ids), isNotNull(document.content))) : [],
     db
-      .select({ status: agentRun.status, error: agentRun.error, output: agentRun.output })
+      .select({ id: agentRun.id, status: agentRun.status, error: agentRun.error, output: agentRun.output })
       .from(agentRun)
       .where(eq(agentRun.jobName, JOBS.scoutSearch))
       .orderBy(desc(agentRun.createdAt))
       .limit(1),
     db
-      .select({ status: agentRun.status, error: agentRun.error, output: agentRun.output })
+      .select({ id: agentRun.id, status: agentRun.status, error: agentRun.error, output: agentRun.output })
       .from(agentRun)
       .where(eq(agentRun.role, "replies"))
       .orderBy(desc(agentRun.createdAt))
@@ -181,12 +188,16 @@ export async function loadBoard(): Promise<BoardData> {
     });
   }
 
+  const searchRunning = latestSearch?.status === "queued" || latestSearch?.status === "running";
+  const repliesRunning = latestReplies?.status === "queued" || latestReplies?.status === "running";
   return {
     cards,
-    searchRunning: latestSearch?.status === "queued" || latestSearch?.status === "running",
+    searchRunning,
+    searchRunId: searchRunning ? latestSearch!.id : null,
     rescoring: rescoreRuns.length > 0,
     lastSearch: latestSearch ? describeSearch(latestSearch) : null,
-    repliesRunning: latestReplies?.status === "queued" || latestReplies?.status === "running",
+    repliesRunning,
+    repliesRunId: repliesRunning ? latestReplies!.id : null,
     lastReplies: latestReplies ? describeReplies(latestReplies) : null,
     workerLastSeenAt: cfg?.workerLastSeenAt?.toISOString() ?? null,
   };

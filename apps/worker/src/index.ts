@@ -10,7 +10,7 @@ import { repliesCheck } from "./jobs/replies";
 import { scoutSearch } from "./jobs/scout";
 import { shipperLocate } from "./jobs/locate";
 import { shipperCaptureEvidence, shipperPrefill, showForm } from "./jobs/shipper";
-import { runner, type JobData } from "./runner";
+import { abortRun, runner, type JobData } from "./runner";
 
 const url = databaseUrl();
 const pool = createPool(url);
@@ -42,12 +42,14 @@ await boss.work<JobData>(JOBS.shipperCaptureEvidence, runner(ctx, JOBS.shipperCa
 // A new worker has no form tabs open, whatever the last one left in the database.
 await pool.query("update application set form_window_open = false where form_window_open");
 
-// The board's Show form button: bring that application's tab to the front.
+// The board's Show form button brings that application's tab to the front; Stop ends a run.
 const listener = await pool.connect();
 listener.on("notification", (msg) => {
   try {
     const event = JSON.parse(msg.payload ?? "") as AppEvent;
     if (event.type === "show_form") void showForm(event.applicationId).catch((err) => console.error("[show form]", err));
+    // A run closed elsewhere (the owner pressed Stop): end the handler instead of letting it run to its time limit.
+    if (event.type === "run" && event.status === "failed") abortRun(event.runId, "The run was closed before it finished.");
   } catch {
     // Not ours to read.
   }

@@ -216,6 +216,7 @@ h1, h2, h3, p { margin: 0; }
 .check { display: inline-flex; gap: 4px; align-items: center; font-weight: 400 !important; }
 
 .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.actions .running { display: inline-flex; align-items: center; gap: 6px; }
 
 .spinner {
   width: 12px; height: 12px; border-radius: 50%; display: inline-block;

@@ -50,6 +50,7 @@ export async function repliesCheck({ ctx, run, log, signal }: RunHelpers): Promi
   let rejected = 0;
 
   await forEachParallel(cards, PARALLEL_COMPANIES, async (card) => {
+    signal.throwIfAborted(); // stopped or timed out: move no more cards
     const emails = (mail.get(card.id) ?? []).filter((e) => !seen.has(`${card.id}:${MESSAGE_PREFIX}${e.id}`));
     if (!emails.length) return;
     try {
@@ -59,6 +60,7 @@ export async function repliesCheck({ ctx, run, log, signal }: RunHelpers): Promi
       const verdict = decide(read.kinds, card.status as "applied" | "replied");
       if (!verdict) return;
       const email = emails[verdict.index]!;
+      signal.throwIfAborted();
       await withTx(ctx.pool, async (tx, client) => {
         await transitionInTx(ctx, tx, client, card.id, verdict.move, { actor: "owner", recordAs: "agent", runId: run.id, note: `Moved by the reply check: "${email.subject}"` });
         await tx.insert(evidence).values({

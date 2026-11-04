@@ -5,7 +5,7 @@ import { agentRun, answerBank, application, blocker, job, profile, settings } fr
 import { DEFAULT_QUESTIONS, ensureAnswerDefaults } from "../src/answers";
 import { questionKey } from "../src/normalize";
 import { deleteAll, exportAll } from "../src/data";
-import { answerBlocker, failStaleRuns, lookupAnswer, raiseBlocker, startExtraction, startSearch } from "../src/runs";
+import { answerBlocker, failRunsWithoutWorker, failStaleRuns, lookupAnswer, raiseBlocker, startExtraction, startRepliesCheck, startSearch, stopRun, STOPPED_ERROR, WORKER_OFFLINE_ERROR } from "../src/runs";
 import { transition } from "../src/transition";
 import { writeFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
@@ -123,6 +123,58 @@ describe("failStaleRuns", () => {
     const { runId } = await applyingApp();
     await env.db.update(agentRun).set({ startedAt: new Date(Date.now() - 3600_000) }).where(eq(agentRun.id, runId));
     expect(await failStaleRuns(env.ctx, { "shipper.prefill": 600 })).toBe(1);
+  });
+});
+
+describe("runs never spin forever", () => {
+  const age = async (runId: string, seconds: number) =>
+    env.db.update(agentRun).set({ createdAt: new Date(Date.now() - seconds * 1000) }).where(eq(agentRun.id, runId));
+  const workerSeen = async (secondsAgo: number | null) => {
+    await env.pool.query("insert into settings (id) values (gen_random_uuid()) on conflict do nothing");
+    await env.db.update(settings).set({ workerLastSeenAt: secondsAgo === null ? null : new Date(Date.now() - secondsAgo * 1000) });
+  };
+
+  it("fails a reply check nobody picked up because the worker is offline", async () => {
+    const { runId } = await startRepliesCheck(env.ctx);
+    await age(runId, 600);
+    await workerSeen(3600);
+    expect(await failRunsWithoutWorker(env.ctx)).toBe(1);
+    expect(await runOf(runId)).toMatchObject({ status: "failed", error: WORKER_OFFLINE_ERROR });
+    await expect(startRepliesCheck(env.ctx)).resolves.toBeDefined();
+  });
+
+  it("rolls a card back when its run is orphaned by a missing worker", async () => {
+    const { appId, runId } = await applyingApp();
+    await age(runId, 600);
+    await workerSeen(null);
+    expect(await failRunsWithoutWorker(env.ctx)).toBe(1);
+    expect((await statusOf(appId)).status).toBe("approved");
+  });
+
+  it("leaves runs alone while the worker is alive, or while they are fresh", async () => {
+    const { runId } = await startRepliesCheck(env.ctx);
+    await age(runId, 600);
+    await workerSeen(10);
+    expect(await failRunsWithoutWorker(env.ctx)).toBe(0);
+    await age(runId, 5);
+    await workerSeen(3600);
+    expect(await failRunsWithoutWorker(env.ctx)).toBe(0);
+  });
+
+  it("the owner can stop a reply check or a Search, but not a card's run", async () => {
+    const replies = await startRepliesCheck(env.ctx);
+    await stopRun(env.ctx, replies.runId);
+    expect(await runOf(replies.runId)).toMatchObject({ status: "failed", error: STOPPED_ERROR });
+    await expect(startRepliesCheck(env.ctx)).resolves.toBeDefined();
+
+    const search = await startSearch(env.ctx);
+    await env.db.update(agentRun).set({ status: "running", startedAt: new Date() }).where(eq(agentRun.id, search.runId));
+    await stopRun(env.ctx, search.runId);
+    expect((await runOf(search.runId)).status).toBe("failed");
+    await stopRun(env.ctx, search.runId); // already over: no-op
+
+    const { runId } = await applyingApp();
+    await expect(stopRun(env.ctx, runId)).rejects.toMatchObject({ code: "illegal" });
   });
 });
 

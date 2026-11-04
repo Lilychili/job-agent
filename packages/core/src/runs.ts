@@ -182,6 +182,47 @@ export async function failStaleRuns(
   return stale.length;
 }
 
+/** The worker beats every minute; this long without a beat means it isn't running. */
+export const WORKER_OFFLINE_AFTER_SECONDS = 150;
+
+/**
+ * Without a worker nothing claims a queued run and nothing times out a running one, so the board would
+ * spin forever. The web app calls this: once the worker has been silent past the limit, every queued or
+ * running run older than the limit is failed (cards roll back) with a message saying why.
+ */
+export async function failRunsWithoutWorker(ctx: CoreContext, limitSeconds = WORKER_OFFLINE_AFTER_SECONDS): Promise<number> {
+  const { rows } = await ctx.pool.query<{ id: string; job_name: string; application_id: string | null }>(
+    `select r.id, r.job_name, r.application_id
+       from agent_run r
+      where r.status in ('queued', 'running')
+        and r.created_at < now() - $1::int * interval '1 second'
+        and not exists (
+          select 1 from settings s where s.worker_last_seen_at > now() - $1::int * interval '1 second'
+        )`,
+    [limitSeconds],
+  );
+  for (const r of rows) {
+    await failRun(ctx, { id: r.id, jobName: r.job_name, applicationId: r.application_id }, WORKER_OFFLINE_ERROR);
+  }
+  return rows.length;
+}
+
+export const WORKER_OFFLINE_ERROR = "The worker isn't running, so this never finished. Start it with pnpm dev and try again.";
+export const STOPPED_ERROR = "Stopped by you.";
+
+/**
+ * The owner stops a Search or reply check. Only runs not tied to a card: a card's run is stopped by Dismiss.
+ * The worker hears the notification and aborts the handler; a queued run is simply never claimed.
+ */
+export async function stopRun(ctx: CoreContext, runId: string): Promise<void> {
+  const { rows } = await ctx.pool.query<{ application_id: string | null; status: string }>("select application_id, status from agent_run where id = $1", [runId]);
+  const run = rows[0];
+  if (!run) throw new TransitionError("not_found", "Run not found.");
+  if (run.application_id) throw new TransitionError("illegal", "Runs on a card stop when you dismiss the card.");
+  if (!(BUSY_RUN_STATUSES as readonly string[]).includes(run.status)) return; // already over
+  await finishRun(ctx, runId, { status: "failed", error: STOPPED_ERROR });
+}
+
 // ─── Blockers ───────────────────────────────────────────────────────────────
 
 /**

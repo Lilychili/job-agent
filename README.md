@@ -2,7 +2,7 @@
 
 A single-user app that finds jobs, writes CVs and cover letters from verified facts, and prefills application forms, with your approval between every step. The plan lives in [docs/](docs/PLAN.md).
 
-**Status: M0 (Foundations) done; M1 (Onboarding) built, needs a real-CV check; M2 (Search) built, needs a first real search.** The board, state machine, queue, worker and live updates are real, and so is onboarding: encrypted API key, Profile editor with CV extraction, Preferences, AnswerBank and the Blockers inbox. Search is real too: Claude searches the web for companies that fit your Preferences, code looks for their Greenhouse, Lever or Ashby boards, and Scout scores the open jobs. You don't have to list companies. Pen is real as of M3: Claude writes the CV and cover letter from cited Profile facts, and you edit them beside the PDF before keeping them. Shipper is still a **stub** that behaves like the real one at its boundaries (Blockers, evidence); M4 replaces it.
+**Status: M0–M3 built; M4 (Apply v1) built for Lever forms; M6 (reply tracking) started.** The board, state machine, queue, worker and live updates are real, and so is onboarding: encrypted API key, Profile editor with CV extraction, Preferences, AnswerBank and the Blockers inbox. Search: Claude searches the web for companies that fit your Preferences, code looks for their Greenhouse, Lever or Ashby boards, Gmail job alerts from Indeed and LinkedIn add more, and Scout scores the open jobs. Pen writes the CV and cover letter from cited Profile facts, and you edit them beside the PDF before approving. Shipper finds the application form when you approve, then prefills it in a visible browser window and hands it to you to submit; only Lever forms have a fill adapter so far. **Check replies** reads Gmail for employers' answers and moves Applied cards to Replied or Rejected. Still open: the M3 and M4 exit checks with real jobs, and Greenhouse and Ashby fill adapters.
 
 Agents reach Claude through your signed-in Claude Code CLI (your subscription) or an Anthropic API key (pay per use); choose in Settings.
 
@@ -33,10 +33,11 @@ Then open the board and try the whole loop:
 
 1. **Search** → three demo jobs appear in Found. Search again: no duplicates.
 2. **Shortlist → Craft** → the Craft modal opens while Claude writes the CV and cover letter. Edit them beside the PDF preview, then click **Craft**: the card moves to Crafted with a **PDF** pill that reopens them for editing or download.
-3. **Approve → Apply** → the Shipper stub hits a question it can't answer and raises a **Blocker** (red).
-4. Answer it → saved to the AnswerBank, the Shipper resumes → *Ready to submit*.
-5. **Mark applied** → submission evidence is recorded; the card can never be submitted again.
-6. Apply on a second job: the notice-period answer is reused, so no Blocker.
+3. **Approve** → the Shipper looks for the job's application form; the card shows what it found.
+4. **Apply** → the form opens in the Shipper's browser window and is filled from your Profile, AnswerBank and approved CV. A required question it can't answer raises a **Blocker** (red) instead of a guess.
+5. Answer it → saved to the AnswerBank, the Shipper fills the form again from scratch → *Ready to submit*. Review what was filled, then submit it yourself in that window.
+6. **Mark applied** → a screenshot and the text of the confirmation page are kept as evidence; the card can never be applied to again.
+7. **Check replies** (needs Gmail connected in Settings) → employers' answers move Applied cards to Replied or Rejected.
 
 ## Test
 
@@ -52,14 +53,15 @@ The DB tests use `TEST_DATABASE_URL` and truncate it on every test.
 
 ```
 apps/web          Next.js board, API routes, SSE endpoint (/api/events)
-apps/worker       pg-boss consumers; src/jobs/{pen,shipper}.ts are M0 stubs
+apps/worker       pg-boss consumers: extractor, scout (search, rescore), pen, shipper (locate, prefill, resume, evidence), replies
 packages/db       Drizzle schema for every table, migrations, NOTIFY helper
-packages/core     State machine: transition table, transition(), guards, runs, blockers
-packages/queue    pg-boss setup shared by web and worker
-packages/ats      Greenhouse, Lever and Ashby clients (plain HTTP, no LLM)
-packages/agents   Claude client, prompt loading, Extractor and Scout scoring
-agents/           Versioned prompt files per role (used from M2)
-docs/             The MVP plan
+packages/core     State machine (transition table, transition(), guards), runs, blockers, AnswerBank, Gmail, secrets
+packages/queue    pg-boss setup and per-queue time limits, shared by web and worker
+packages/ats      Greenhouse, Lever and Ashby clients and form finding (plain HTTP, no LLM)
+packages/agents   Claude client (API key or Claude Code CLI), prompts, every role's structured output, PDF rendering
+packages/forms    Playwright form filling: FormSession safety rules, per-ATS adapters (Lever so far)
+agents/           Versioned prompt files per role, plus shared security rules
+docs/             The plan and the design notes
 ```
 
 ## How it fits together
@@ -68,6 +70,7 @@ docs/             The MVP plan
 - **Guards enforced in code:** confirmed Profile before Craft; approved PDFs must match their stored SHA-256 before Apply; no Shipper run once `submission` evidence exists; one active run per application (partial unique index); approved documents are immutable (DB trigger).
 - **Live board:** the worker and web write `pg_notify('app_events', …)`; the web keeps one `LISTEN` connection and fans it out over Server-Sent Events. Notifications sent inside a transaction arrive only on commit, so the board never shows a rolled-back change.
 - **Idempotent jobs:** the AgentRun id is the pg-boss job id, and the worker only starts a run it can move from `queued` to `running`. Duplicate deliveries are skipped.
+- **No endless spinners:** every queue has a time limit (`QUEUES` in `packages/queue`) that the runner enforces with an AbortSignal, and the heartbeat fails runs past it. When the worker itself is offline, the web app fails queued or running runs older than 150 s the next time the board loads (`failRunsWithoutWorker`), saying the worker isn't running. Search and Check replies have a **Stop** button (`POST /api/runs/:id/stop`); the worker hears the notification and aborts the handler.
 - **Blockers** are a flag, not a status. Raising one pauses the run with a checkpoint; answering the last one supersedes the paused run and queues `shipper.resume`, which refills the form from scratch using the larger AnswerBank.
 
 ## Changes from the plan
@@ -86,6 +89,8 @@ docs/             The MVP plan
 - Settings has "Export all data" and "Delete all data".
 - **Add job** on the board puts a job you found yourself in Found. It needs a link, is deduped like Scout's finds, and a dismissed job can't be added back.
 
-## Next: M3
+## Next
 
-The real Pen and the Craft modal are built: Claude drafts from cited facts, the owner edits beside the PDF, and the PDFs are saved without metadata. Still to do: the exit check of 5 jobs crafted and approved, with a spot check for unsupported claims and an `exiftool` metadata check.
+- M3 exit check: craft and approve 5 real jobs, spot-check for unsupported claims, and check the PDFs with `exiftool`.
+- M4: fill adapters for Greenhouse and Ashby (`packages/forms`), and the exit check of 10 real applications end to end.
+- Replies: run on a schedule, and match by sender domain as well as company name.

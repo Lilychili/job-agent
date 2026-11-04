@@ -20,6 +20,14 @@ export type Outcome =
   | { kind: "succeeded"; output?: Record<string, unknown> }
   | { kind: "paused" };
 
+/** The abort controller of each run this worker is executing, so a Stop from the board can end it. */
+const inFlight = new Map<string, AbortController>();
+
+/** Abort a run this worker is executing. A no-op for a run it isn't. */
+export function abortRun(runId: string, reason: string): void {
+  inFlight.get(runId)?.abort(new Error(reason));
+}
+
 /**
  * Wraps every handler: claim the run (skip duplicates), enforce the timeout,
  * and turn exceptions into a failed run plus the matching rollback transition.
@@ -39,6 +47,7 @@ export function runner(
         continue;
       }
       const controller = new AbortController();
+      inFlight.set(run.id, controller);
       const timer = setTimeout(() => controller.abort(new Error(`Timed out after ${timeoutMs / 1000}s`)), timeoutMs);
       const log = (m: string) => appendLog(ctx, run.id, m);
       try {
@@ -61,6 +70,7 @@ export function runner(
         await failRun(ctx, run, message);
       } finally {
         clearTimeout(timer);
+        inFlight.delete(run.id);
       }
     }
   };

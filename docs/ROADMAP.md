@@ -42,12 +42,12 @@ Each milestone ends with something usable. Estimates assume one developer, part-
 - Confirmation capture (page text + screenshot) immediately after submit; idempotency key.
 
 #### Where shipping stands before M5
-Only the gating exists: the state machine, the `approvedDocsIntact` and `noSubmissionEvidence` guards, and the Blocker loop. The worker's Shipper (`apps/worker/src/jobs/shipper.ts`) is still a stub that opens no browser. "Mark applied" is a manual step: the owner submits on the employer's site and clicks the button, which writes a `submission` evidence row in the same transaction. That row records the owner's word, not a confirmed submission, and `shipper.captureEvidence` saves only placeholder text. M4 replaces the stub; M5 adds the rest below.
+Prefill v1 is built for Lever: `shipper.locate` finds the form on Approve, and `shipper.prefill` opens it in a headed window (`FormSession` holds the host lock, blocks the submit request and re-hashes each upload), fills it from Profile, AnswerBank and the approved documents, raises Blockers for required questions it can't answer, and hands the window to the owner. Greenhouse and Ashby forms are found but not yet filled. "Mark applied" is still the owner's word: it writes a `submission` evidence row, and `shipper.captureEvidence` keeps a screenshot and the page text of whatever the window shows, not a matched confirmation. M5 adds the rest below.
 
 #### Missing features and the plan
 | Gap | Plan |
 |---|---|
-| Real browser Shipper | M4 first: Playwright with the `packages/forms` adapters (Greenhouse, Lever, Ashby), `form.upload` verifying the document hash, one run per authorized row. |
+| Real browser Shipper | Built for Lever (M4). Still to do: Greenhouse and Ashby adapters in `packages/forms`. |
 | Recheck employer, role and destination | Before filling, load the form and compare employer, job title and ATS host with the row's `job`. Stop with a Blocker on any mismatch. Block navigation off the job's ATS host in the browser context, not just in the prompt. |
 | Fill only from verified facts | Every `form.fill` value carries a source (`profile`, `answerBank` or `blocker`) that code checks. Reject a value with no source or one the page suggested. Log the source of each field on the run. |
 | Unknown required answer | Keep the Blocker loop: pause, ask, save the answer to the AnswerBank, resume. A required field with no confident answer never gets a guess. |
@@ -55,13 +55,13 @@ Only the gating exists: the state machine, the `approvedDocsIntact` and `noSubmi
 | Submit tool | Add `form.submit`, only when all of these hold: zero open Blockers, `approvedDocsIntact` passes, no CAPTCHA, destination rechecked, and the per-application "allow auto-submit" toggle is on. |
 | Idempotency | Add an `idempotency_key` to the application. Write a `submitting` evidence row with the key in a transaction before the click. After a crash or restart, check the form's confirmation state and the evidence rows first, and never click submit again while a `submitting` row exists without a result. |
 | Mark submitted only after confirmation | Auto-submit moves a card to Applied only after the confirmation page or email is read and matched to the row. A submit with no confirmation moves to a new `needs_check` state for the owner to resolve. For the manual button, ask the owner to paste or attach the confirmation. |
-| Evidence | Add `channel` (ATS name, direct site, email), `submittedAt` and `confirmation` to `evidence`. Save a screenshot as a file (`filePath`) plus the confirmation text. Remove the "(stub)" placeholder text. Link the evidence to the document IDs and hashes that were sent. |
+| Evidence | Add `channel` (ATS name, direct site, email), `submittedAt` and `confirmation` to `evidence`. (A screenshot and the page text are already kept.) Link the evidence to the document IDs and hashes that were sent. |
 | Duplicate evidence | Keep the guards. Also match across applications on canonical URL and company plus title, so a re-added or archived job can't be submitted twice. |
 
 **Exit:** 10 auto-submitted applications with a saved screenshot and confirmation each, no duplicate and no double submit after a forced worker restart mid-submit.
 
 ### M6 — Reply tracking
-Started: the board's **Check replies** button runs `replies.check` (see Replies in [AGENTS.md](AGENTS.md)). It moves cards by itself, as the owner asked, instead of proposing a move; matching is by company name only, not yet by domain or subject. Still to do: run it on a schedule, and match by sender domain.
+Started: the board's **Check replies** button runs `replies.check` (see Replies in [AGENTS.md](AGENTS.md)). It moves cards by itself, as the owner asked, instead of proposing a move; matching is by company name only, not yet by domain or subject. It has a 5-minute limit and a Stop button, and fails at once with a clear error when the worker is offline. Still to do: run it on a schedule, and match by sender domain.
 
 - Inbox connection (Gmail API or IMAP), match messages to applications by company/domain/subject, propose a status move (Replied / Interview / Rejected) for the owner to confirm.
 
