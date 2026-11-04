@@ -1,5 +1,6 @@
 import { htmlToText } from "./text";
 import { companyFromToken, type Posting, type Remote } from "./types";
+import { isWebLink } from "./url";
 
 export interface AshbyJob {
   title?: string;
@@ -18,7 +19,7 @@ const WORKPLACE: Record<string, Remote> = { Remote: "remote", Hybrid: "hybrid", 
 
 export function ashbyPostings(boardToken: string, jobs: AshbyJob[]): Posting[] {
   return jobs.flatMap((j) => {
-    if (!j.title || !j.jobUrl || j.isListed === false) return [];
+    if (!j.title || !j.jobUrl || !isWebLink(j.jobUrl) || j.isListed === false) return [];
     const location = j.location?.trim() || null;
     const salary = j.compensation?.scrapeableCompensationSalarySummary?.trim() || "not stated";
     const description = j.descriptionPlain?.trim() || htmlToText(j.descriptionHtml ?? "");

@@ -29,18 +29,15 @@ const RUN_LIMITS = Object.fromEntries(Object.entries(QUEUES).map(([name, q]) => 
 const recovered = await failStaleRuns(ctx, RUN_LIMITS, { assumeNoneRunning: true });
 if (recovered) console.log(`Closed ${recovered} run(s) left over from a previous worker.`);
 
-await boss.work<JobData>(JOBS.extractorExtract,runner(ctx, JOBS.extractorExtract, extractorExtract));
-await boss.work<JobData>(JOBS.scoutSearch,runner(ctx, JOBS.scoutSearch, scoutSearch));
+await boss.work<JobData>(JOBS.extractorExtract, runner(ctx, JOBS.extractorExtract, extractorExtract));
+await boss.work<JobData>(JOBS.scoutSearch, runner(ctx, JOBS.scoutSearch, scoutSearch));
 await boss.work<JobData>(JOBS.scoutRescore, runner(ctx, JOBS.scoutRescore, scoutRescore));
 await boss.work<JobData>(JOBS.repliesCheck, runner(ctx, JOBS.repliesCheck, repliesCheck));
 await boss.work<JobData>(JOBS.penCraft, runner(ctx, JOBS.penCraft, penCraft));
 await boss.work<JobData>(JOBS.shipperLocate, runner(ctx, JOBS.shipperLocate, shipperLocate));
 await boss.work<JobData>(JOBS.shipperPrefill, runner(ctx, JOBS.shipperPrefill, shipperPrefill));
 await boss.work<JobData>(JOBS.shipperResume, runner(ctx, JOBS.shipperResume, shipperPrefill));
-await boss.work<JobData>(
-  JOBS.shipperCaptureEvidence,
-  runner(ctx, JOBS.shipperCaptureEvidence, shipperCaptureEvidence),
-);
+await boss.work<JobData>(JOBS.shipperCaptureEvidence, runner(ctx, JOBS.shipperCaptureEvidence, shipperCaptureEvidence));
 
 // A new worker has no form tabs open, whatever the last one left in the database.
 await pool.query("update application set form_window_open = false where form_window_open");

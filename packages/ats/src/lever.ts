@@ -1,5 +1,6 @@
 import { htmlToText, remoteFromLocation } from "./text";
 import { companyFromToken, type Posting, type Remote } from "./types";
+import { isWebLink } from "./url";
 
 export interface LeverPosting {
   text?: string;
@@ -31,7 +32,7 @@ function textOf(p: LeverPosting, salary: string): string {
 
 export function leverPostings(boardToken: string, postings: LeverPosting[]): Posting[] {
   return postings.flatMap((p) => {
-    if (!p.text || !p.hostedUrl) return [];
+    if (!p.text || !p.hostedUrl || !isWebLink(p.hostedUrl)) return [];
     const location = p.categories?.location?.trim() || null;
     const salary = salaryOf(p);
     return {

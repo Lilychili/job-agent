@@ -59,6 +59,14 @@ describe("transition()", () => {
     expect(ev[0]).toMatchObject({ action: "shortlist", fromStatus: "found", toStatus: "shortlisted", actorType: "owner" });
   });
 
+  it("names the agent in the audit trail when it acts for the owner", async () => {
+    const { appId } = await makeApp(env, "applied");
+    const runId = await makeRun(env, appId);
+    await transition(env.ctx, appId, "markReplied", { actor: "owner", recordAs: "agent", runId });
+    const [ev] = await events(appId);
+    expect(ev).toMatchObject({ action: "markReplied", toStatus: "replied", actorType: "agent", agentRunId: runId });
+  });
+
   it("rejects illegal moves without side effects", async () => {
     const { appId } = await makeApp(env, "found");
     await expectError(transition(env.ctx, appId, "approve"), "illegal");

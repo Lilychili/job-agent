@@ -214,6 +214,9 @@ importers:
 
   packages/forms:
     dependencies:
+      '@jobagent/ats':
+        specifier: workspace:*
+        version: link:../ats
       playwright:
         specifier: ^1.64.1
         version: 1.64.1

@@ -12,7 +12,8 @@ export const PUT = route(async (req) => {
   const b = await readBody<{ answers: unknown }>(req);
   if (!Array.isArray(b.answers)) throw new ValidationError("Invalid request.");
   const rows = await loadAnswers();
-  const edits = (b.answers as { id: unknown; answer: unknown }[]).map(({ id, answer }) => {
+  const edits = (b.answers as unknown[]).map((item) => {
+    const { id, answer } = (item ?? {}) as { id?: unknown; answer?: unknown };
     const row = rows.find((r) => r.id === id);
     if (!row || typeof answer !== "string") throw new ValidationError("That answer no longer exists. Reload the page.");
     const problem = checkAnswer(row.rule, answer);

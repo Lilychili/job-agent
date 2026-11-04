@@ -18,6 +18,8 @@ import { ACTIVE_RUN_STATUSES, getRule, JOBS, type Action, type Status } from "./
 export interface TransitionOptions {
   /** Who is asking. Owner requests can't trigger system actions and vice versa. */
   actor?: "owner" | "system";
+  /** Who the audit trail names, when an agent acts with the owner's rights (the reply check). Defaults to `actor`. */
+  recordAs?: "agent";
   /** For system actions: the AgentRun that finished. It is closed as succeeded/failed. */
   runId?: string;
   /** For failure actions: shown on the card. */
@@ -210,7 +212,7 @@ export async function transitionInTx(
     action,
     fromStatus: from,
     toStatus: to,
-    actorType: actor,
+    actorType: opts.recordAs ?? actor,
     agentRunId: opts.runId ?? runId,
     note: opts.error ?? opts.note,
   });

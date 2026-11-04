@@ -4,7 +4,7 @@
  * wrapper and pose as instructions.
  */
 export function wrapUntrusted(kind: "cv" | "posting" | "page" | "email", text: string): string {
-  const safe = text.replace(/<(\/?)\s*untrusted/gi, "<$1 (escaped) untrusted");
+  const safe = text.replace(/<\s*(\/?)\s*untrusted/gi, "<$1 (escaped) untrusted");
   return `<untrusted_${kind}>\n${safe}\n</untrusted_${kind}>`;
 }
 

@@ -70,6 +70,10 @@ describe("parsePreferences", () => {
     expect(() => parsePreferences({ ...ok, companyBoards: [{ ats: "workday", boardToken: "x" }] })).toThrow(/Unknown job board/);
     expect(() => parsePreferences({ ...ok, companyBoards: [{ ats: "lever", boardToken: "../etc" }] })).toThrow(/board name/);
   });
+
+  it("skips empty board rows instead of failing", () => {
+    expect(parsePreferences({ ...ok, companyBoards: [null, { ats: "lever", boardToken: "acme" }] }).companyBoards).toEqual([{ ats: "lever", boardToken: "acme" }]);
+  });
 });
 
 describe("parseModel", () => {

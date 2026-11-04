@@ -30,6 +30,7 @@ describe("listPostings", () => {
             content: "&lt;p&gt;Build &amp;amp; ship&lt;/p&gt;&lt;script&gt;bad()&lt;/script&gt;",
           },
           { title: "No link" },
+          { title: "Not a web link", absolute_url: "javascript:alert(1)" },
         ],
       },
     }));

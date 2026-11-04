@@ -1,5 +1,6 @@
 // Finds where a company lists its jobs. Claude may search the web and only reports links; code then
 // reads them for a Greenhouse, Lever or Ashby board and checks the board belongs to the company.
+import { isPublicHttps } from "@jobagent/ats";
 import { ValidationError } from "@jobagent/core";
 import { askClaude, type Auth } from "./ask";
 import type { Usage } from "./claude";
@@ -33,7 +34,7 @@ export function parseCareersLinks(output: unknown): string[] {
     } catch {
       continue;
     }
-    if (url.protocol !== "https:" || !url.hostname.includes(".") || /^\d+(\.\d+){3}$/.test(url.hostname) || AGGREGATORS.test(url.hostname)) continue;
+    if (!isPublicHttps(url) || AGGREGATORS.test(url.hostname)) continue;
     url.hash = "";
     if (!out.includes(url.toString())) out.push(url.toString());
     if (out.length >= MAX_LINKS) break;

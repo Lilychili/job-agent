@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { closeShipperBrowser, FormSession, HashMismatchError, isPublicHttps, lever, prefill, type ApprovedFile, type FillSources } from "../src";
+import { closeShipperBrowser, FormSession, HashMismatchError, lever, prefill, type ApprovedFile, type FillSources } from "../src";
 
 const FIXTURE = new URL("./fixtures/lever-apply.html", import.meta.url);
 
@@ -191,15 +191,5 @@ describe("a Lever form in Chromium", () => {
     await session.page.click("#away").catch(() => {});
     await session.page.waitForTimeout(300);
     expect(blocked).toEqual(["navigation to example.invalid"]);
-  });
-});
-
-describe("isPublicHttps", () => {
-  it("allows only https on a public name", () => {
-    expect(isPublicHttps("https://www.wizeline.ai/careers")).toBe(true);
-    expect(isPublicHttps("http://www.wizeline.ai/careers")).toBe(false);
-    expect(isPublicHttps("https://localhost/x")).toBe(false);
-    expect(isPublicHttps("https://192.168.1.1/x")).toBe(false);
-    expect(isPublicHttps("https://intranet/x")).toBe(false);
   });
 });

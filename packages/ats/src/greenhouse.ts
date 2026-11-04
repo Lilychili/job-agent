@@ -1,5 +1,6 @@
 import { htmlToText, remoteFromLocation } from "./text";
 import { companyFromToken, type Posting } from "./types";
+import { isWebLink } from "./url";
 
 export interface GreenhouseJob {
   title?: string;
@@ -11,7 +12,7 @@ export interface GreenhouseJob {
 
 export function greenhousePostings(boardToken: string, jobs: GreenhouseJob[]): Posting[] {
   return jobs.flatMap((j) => {
-    if (!j.title || !j.absolute_url) return [];
+    if (!j.title || !j.absolute_url || !isWebLink(j.absolute_url)) return [];
     const location = j.location?.name?.trim() || null;
     return {
       ats: "greenhouse" as const,
