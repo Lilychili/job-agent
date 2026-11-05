@@ -8,7 +8,7 @@
 ![Postgres](https://img.shields.io/badge/Postgres-16-336791)
 ![CI](https://github.com/Lilychili/job-agent/actions/workflows/ci.yml/badge.svg)
 
-> **Status: MVP in active development.** Search, Craft, Review and Prefill work end to end (prefill for Lever and Greenhouse forms so far). Reply tracking via Gmail has started. Hosting, auth and the portfolio material are in progress: see [Roadmap](#roadmap).
+> **Status: MVP in active development.** Search, Craft, Review and Prefill work end to end (prefill for Lever and Greenhouse forms so far). Reply tracking via Gmail has started. Hosting and auth are still to come: see [Outstanding](#outstanding).
 
 ---
 
@@ -19,7 +19,7 @@
 - [What can you try?](#what-can-you-try)
 - [What's technically interesting?](#whats-technically-interesting)
 - [Architecture](#architecture)
-- [Roadmap](#roadmap)
+- [Outstanding](#outstanding)
 - [Project layout](#project-layout)
 - [Documentation](#documentation)
 
@@ -47,10 +47,10 @@ The ground rules (from [docs/PRODUCT.md](docs/PRODUCT.md)):
 
 ## What does it look like?
 
-<!-- TODO (Week 4): replace with real screenshots in docs/images/ and a link to the demo video. -->
-> 📸 Screenshots and a 2-minute demo video are coming in Week 4 (see [Roadmap](#roadmap)).
+<!-- TODO: replace with real screenshots in docs/images/ and a link to the demo video. -->
+> 📸 Screenshots and a short demo video are coming.
 
-The app is a **Kanban board**. Each job is a card that moves through fixed columns, and only the green steps are done by an agent:
+The app is a **Kanban board**. Each job is a card that moves through fixed columns. Steps marked *agent* are done by an agent; every other move is your click:
 
 ```mermaid
 flowchart LR
@@ -163,7 +163,7 @@ flowchart LR
         API[API routes] --> T["transition()"]
         SSE["/api/events (SSE)"]
     end
-    subgraph PG[(Postgres 16)]
+    subgraph PG["Postgres 16"]
         D[(data)]
         Q[(pg-boss queue)]
         N{{LISTEN / NOTIFY}}
@@ -186,35 +186,18 @@ More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/STATE_MACH
 
 **Stack:** TypeScript · Next.js (App Router) · React · Postgres 16 · Drizzle ORM · pg-boss · Playwright · Zod · Vitest · Claude (Anthropic API / Claude Code) · pnpm workspaces · GitHub Actions
 
-## Roadmap
+## Outstanding
 
-✅ Done · 🚧 In progress · ⏳ Planned. The full plan is in [docs/ROADMAP.md](docs/ROADMAP.md), and **how each item will be built** is in [docs/DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md).
-
-| Milestone | Status |
-|---|---|
-| M0 Foundations: monorepo, state machine, queue, live board | ✅ |
-| M1 Onboarding: Profile, CV extraction, Preferences, AnswerBank, encrypted key | ✅ |
-| M2 Search: ATS clients, dedupe, scoring, Gmail job alerts | ✅ |
-| M3 Craft and review: cited CV and cover letter, PDF, approve and lock | ✅ (exit check with real jobs pending) |
-| M4 Apply v1: prefill and human submit | 🚧 Lever and Greenhouse done; Ashby adapter next |
-| M6 Reply tracking via Gmail | 🚧 Manual check works; scheduling and domain matching next |
-
-**Week 3: Deployment** 🚧
-
+- [ ] Prefill for Ashby forms
+- [ ] Reply tracking on a schedule, with employer domain matching
 - [ ] Authentication (single owner, replacing the localhost-only guard)
 - [ ] Hosted PostgreSQL
 - [ ] Worker deployed separately from the web app
-- [ ] Persistent file storage for CVs, PDFs and evidence (object storage)
+- [ ] Persistent file storage for CVs, PDFs and evidence
 - [ ] Monitoring: errors, health checks, worker heartbeat, cost per run
-
-**Week 4: Portfolio** ⏳
-
-- [ ] Demo video
-- [ ] Architecture diagram
-- [ ] Engineering case study
-- [ ] Polish this README and the GitHub profile
-
-**Later:** auto-submit with idempotency keys (M5), more ATS sources, analytics on response rate by template version.
+- [ ] Screenshots and a demo video
+- [ ] Auto-submit with idempotency keys
+- [ ] More ATS sources
 
 ## Project layout
 
@@ -245,7 +228,7 @@ docs/             Product, architecture and design notes
 | [SOURCES.md](docs/SOURCES.md) | Where jobs come from; Gmail setup |
 | [RISKS.md](docs/RISKS.md) | Known risks and mitigations |
 | [DEVELOPMENT_NOTES.md](docs/DEVELOPMENT_NOTES.md) | Deviations from the plan, implementation notes |
-| [DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md) | How Weeks 3 and 4 will be built |
+| [DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md) | How deployment and monitoring will be built |
 
 ---
 

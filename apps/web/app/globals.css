@@ -87,7 +87,7 @@ h1, h2, h3, p { margin: 0; }
 .hero-card {
   position: relative; z-index: 1; max-width: 600px; padding: 40px;
   display: flex; flex-direction: column; align-items: flex-start; gap: 20px;
-  background: rgb(255 255 255 / 0.65); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  background: rgb(255 255 255 / 0.65); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   border: 1px solid rgb(255 255 255 / 0.8); border-radius: 32px; box-shadow: var(--shadow);
 }
 .tag {
@@ -133,7 +133,7 @@ h1, h2, h3, p { margin: 0; }
 .topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 12px 20px; border-bottom: 1px solid var(--border);
-  background: rgb(255 255 255 / 0.65); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  background: rgb(255 255 255 / 0.65); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
 }
 .status { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .dot-label {
@@ -169,7 +169,7 @@ h1, h2, h3, p { margin: 0; }
 .empty { color: var(--muted); text-align: center; padding: 8px; }
 
 .card {
-  background: rgb(255 255 255 / 0.8); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  background: rgb(255 255 255 / 0.8); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   border: 1px solid var(--border); border-radius: var(--radius);
   padding: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px;
   transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
@@ -214,8 +214,9 @@ h1, h2, h3, p { margin: 0; }
 .meta { color: var(--muted); font-size: 12px; }
 .muted { color: var(--muted); font-style: italic; }
 
-.reasons { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px; }
-.reasons li { font-size: 11px; border-radius: 999px; padding: 1px 8px; background: var(--surface-2); }
+.reasons { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 3px; }
+/* Plain lines with a mark, not a bubble each: the card stays one glass surface. */
+.reasons li { font-size: 11px; line-height: 1.4; padding: 0 2px; color: var(--muted); }
 .reasons .met::before, .craft-requirements .met::before { content: "✓ "; color: var(--ok); }
 .reasons .missed::before, .craft-requirements .missed::before { content: "✗ "; color: var(--danger); }
 .requirements summary { font-size: 12px; color: var(--muted); cursor: pointer; }
@@ -312,7 +313,7 @@ h1, h2, h3, p { margin: 0; }
 .page-lead { color: var(--muted); font-size: 16px; max-width: 60ch; margin-bottom: 8px; }
 
 .panel {
-  background: rgb(255 255 255 / 0.72); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  background: rgb(255 255 255 / 0.72); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   border: 1px solid var(--border); border-radius: 28px; padding: 24px; box-shadow: var(--shadow);
   display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px;
 }
@@ -538,7 +539,7 @@ label.btn { cursor: pointer; }
 .wizard-card {
   display: flex; flex-direction: column; gap: 16px; align-items: stretch;
   padding: 36px 40px; border-radius: 32px;
-  background: rgb(255 255 255 / 0.72); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  background: rgb(255 255 255 / 0.72); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   border: 1px solid rgb(255 255 255 / 0.85); box-shadow: var(--shadow);
   animation: wizard-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
@@ -637,7 +638,14 @@ p.callout { flex-direction: row; align-items: center; gap: 8px; }
 /* ---------- Column tints ----------
    Each stage gets a faint wash of its own colour, cool to warm as a card moves along and muted at the end,
    so the board reads at a glance without the colour competing with the cards. */
-.column { --col-tint: #ede9fe; --col-ink: #7c3aed; background: linear-gradient(180deg, color-mix(in srgb, var(--col-tint) 70%, transparent) 0%, color-mix(in srgb, var(--col-tint) 28%, transparent) 220px), var(--surface-2); }
+.column {
+  --col-tint: #ede9fe; --col-ink: #7c3aed;
+  /* Only a faint glow at the top; below it the column is frosted glass like the rest of the app. */
+  background: linear-gradient(180deg, color-mix(in srgb, var(--col-tint) 32%, transparent) 0%, transparent 140px), rgb(255 255 255 / 0.28);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  /* Thin see-through scrollbar instead of the grey system one. */
+  scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--col-ink) 22%, transparent) transparent;
+}
 .column[data-col="found"] { --col-tint: #ede9fe; --col-ink: #7c3aed; }
 .column[data-col="shortlisted"] { --col-tint: #e0e7ff; --col-ink: #4f46e5; }
 .column[data-col="crafted"] { --col-tint: #e0f2fe; --col-ink: #0284c7; }
@@ -649,4 +657,3 @@ p.callout { flex-direction: row; align-items: center; gap: 8px; }
 .col-title { display: inline-flex; align-items: center; gap: 8px; }
 .col-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--col-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--col-ink) 16%, transparent); }
 .column h2 .count { background: color-mix(in srgb, var(--col-tint) 60%, white); color: color-mix(in srgb, var(--col-ink) 80%, var(--text)); }
-.column .card { border-top: 2px solid color-mix(in srgb, var(--col-ink) 22%, transparent); }
