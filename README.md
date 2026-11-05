@@ -47,8 +47,11 @@ The ground rules (from [docs/PRODUCT.md](docs/PRODUCT.md)):
 
 ## What does it look like?
 
-<!-- TODO: replace with real screenshots in docs/images/ and a link to the demo video. -->
-> 📸 Screenshots and a short demo video are coming.
+<!-- TODO: add a link to the demo video. -->
+
+![The Board: job cards moving through Found, Shortlisted, Crafted, Approved, Applied, Replied and Interview](docs/images/board.png)
+
+![Setup: the four-step checklist (Connect Claude, Profile, search criteria, common questions)](docs/images/setup.png)
 
 The app is a **Kanban board**. Each job is a card that moves through fixed columns. Steps marked *agent* are done by an agent; every other move is your click:
 
